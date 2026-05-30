@@ -1,4 +1,5 @@
-﻿@{
+﻿@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
+@{
 	ViewData["Title"] = "Менеджер образовательных программ";
 }
 
@@ -168,54 +169,44 @@
 									</tr>
 								</thead>
 								<tbody>
-									<tr>
-										<td>Учебный план (очный)</td>
-										<td><span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle">Принято</span></td>
-										<td>01.01.2001</td>
-										<td>Проверяющий отсутствует</td>
-										<td>
-											<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload">
-												<input type="hidden" name="elementId" value="2" />
+									@foreach (var element in Model.Where(e => e.TypeElement == "Main"))
+									{
+										<tr>
+											<td>@element.Name</td>
+											<td>
+												@{
+													var statusClass = element.StatusApprovals switch
+													{
+														"Принято" => "bg-success-subtle text-success border-success-subtle",
+														"Отклонено" => "bg-danger-subtle text-danger border-danger-subtle",
+														"На рассмотрении" => "bg-info-subtle text-info border-info-subtle",
+														_ => "bg-secondary-subtle text-secondary border-secondary-subtle"
+													};
+													var statusText = string.IsNullOrEmpty(element.StatusApprovals) ? "Не загружено" : element.StatusApprovals;
+												}
+												<span class="badge rounded-pill @statusClass border">@statusText</span>
+											</td>
+											<td>@(element.UploadDate?.ToString("dd.MM.yyyy") ?? "-")</td>
+											<td>Проверяющий отсутствует</td>
+											<td>
 												<div class="d-flex gap-2">
-													<a href="#" class="btn btn-outline-secondary btn-sm">💬</a>
-													<button type="submit" class="btn btn-outline-secondary btn-sm">✔️</button>
-													<input type="file" name="file" class="btn btn-outline-secondary btn-sm" />
+													@if (!string.IsNullOrEmpty(element.FilePath))
+													{
+														<a asp-action="Download" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="Посмотреть файл">📄</a>
+													}
+													@if (string.IsNullOrEmpty(element.StatusApprovals) || element.StatusApprovals == "Отклонено")
+													{
+														<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload" class="d-flex gap-2">
+															<input type="hidden" name="elementId" value="@element.Id" />
+															<input type="file" name="file" class="form-control form-control-sm" style="max-width: 200px;" required />
+															<button type="submit" class="btn btn-outline-primary btn-sm">✔️</button>
+														</form>
+													}
+													<a href="#" class="btn btn-outline-secondary btn-sm" title="Комментарии">💬</a>
 												</div>
-											</form>
-										</td>
-									</tr>
-									<tr>
-										<td>Пояснительная записка</td>
-										<td><span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle">Отклонено</span></td>
-										<td>01.01.2001</td>
-										<td>Проверяющий отсутствует</td>
-										<td>
-											<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload">
-												<input type="hidden" name="elementId" value="2" />
-												<div class="d-flex gap-2">
-													<a href="#" class="btn btn-outline-secondary btn-sm">💬</a>
-													<button type="submit" class="btn btn-outline-secondary btn-sm">✔️</button>
-													<input type="file" name="file" class="btn btn-outline-secondary btn-sm" />
-												</div>
-											</form>
-										</td>
-									</tr>
-									<tr>
-										<td>Календарный учебный график</td>
-										<td><span class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary-subtle">На рассмотрении</span></td>
-										<td>01.01.2001</td>
-										<td>Проверяющий отсутствует</td>
-										<td>
-											<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload">
-												<input type="hidden" name="elementId" value="2" />
-												<div class="d-flex gap-2">
-													<a href="#" class="btn btn-outline-secondary btn-sm">💬</a>
-													<button type="submit" class="btn btn-outline-secondary btn-sm">✔️</button>
-													<input type="file" name="file" class="btn btn-outline-secondary btn-sm" />
-												</div>
-											</form>
-										</td>
-									</tr>
+											</td>
+										</tr>
+									}
 								</tbody>
 							</table>
 						</div>
@@ -248,40 +239,45 @@
 									</tr>
 								</thead>
 								<tbody>
-									<tr>
-										<td>Б1.О.01</td>
-										<td>Философия</td>
-										<td><span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle">Принято</span></td>
-										<td>01.01.2001</td>
-										<td>Проверяющий отсутствует</td>
-										<td>
-											<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload">
-												<input type="hidden" name="elementId" value="2" />
+									@foreach (var element in Model.Where(e => e.TypeElement == "Discipline"))
+									{
+										<tr>
+											<td>@element.Description</td> @* Assuming Description is used for cipher or name *@
+											<td>@element.Name</td>
+											<td>
+												@{
+													var statusClassD = element.StatusApprovals switch
+													{
+														"Принято" => "bg-success-subtle text-success border-success-subtle",
+														"Отклонено" => "bg-danger-subtle text-danger border-danger-subtle",
+														"На рассмотрении" => "bg-info-subtle text-info border-info-subtle",
+														_ => "bg-secondary-subtle text-secondary border-secondary-subtle"
+													};
+													var statusTextD = string.IsNullOrEmpty(element.StatusApprovals) ? "Не загружено" : element.StatusApprovals;
+												}
+												<span class="badge rounded-pill @statusClassD border">@statusTextD</span>
+											</td>
+											<td>@(element.UploadDate?.ToString("dd.MM.yyyy") ?? "-")</td>
+											<td>Проверяющий отсутствует</td>
+											<td>
 												<div class="d-flex gap-2">
-													<a href="#" class="btn btn-outline-secondary btn-sm">💬</a>
-													<button type="submit" class="btn btn-outline-secondary btn-sm">✔️</button>
-													<input type="file" name="file" class="btn btn-outline-secondary btn-sm" />
+													@if (!string.IsNullOrEmpty(element.FilePath))
+													{
+														<a asp-action="Download" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="Посмотреть файл">📄</a>
+													}
+													@if (string.IsNullOrEmpty(element.StatusApprovals) || element.StatusApprovals == "Отклонено")
+													{
+														<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload" class="d-flex gap-2">
+															<input type="hidden" name="elementId" value="@element.Id" />
+															<input type="file" name="file" class="form-control form-control-sm" style="max-width: 200px;" required />
+															<button type="submit" class="btn btn-outline-primary btn-sm">✔️</button>
+														</form>
+													}
+													<a href="#" class="btn btn-outline-secondary btn-sm" title="Комментарии">💬</a>
 												</div>
-											</form>
-										</td>
-									</tr>
-									<tr>
-										<td>Б1.О.01</td>
-										<td>Философия</td>
-										<td><span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle">Отклонено</span></td>
-										<td>01.01.2001</td>
-										<td>Проверяющий отсутствует</td>
-										<td>
-											<form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload">
-												<input type="hidden" name="elementId" value="2" />
-												<div class="d-flex gap-2">
-													<a href="#" class="btn btn-outline-secondary btn-sm">💬</a>
-													<button type="submit" class="btn btn-outline-secondary btn-sm">✔️</button>
-													<input type="file" name="file" class="btn btn-outline-secondary btn-sm" />
-												</div>
-											</form>
-										</td>
-									</tr>
+											</td>
+										</tr>
+									}
 								</tbody>
 							</table>
 						</div>

@@ -11,14 +11,21 @@ namespace PersonalCabinetEducationProgram.Data
         public DbSet<EducationalProgramElement> EducationalProgramElements { get; set; }
         public DbSet<EducationalProgramElementComment> EducationalProgramElementComment { get; set; }
 
+        public ApplicationDbContext() { }
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            var config = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json")
-            .Build();
+            if (!optionsBuilder.IsConfigured)
+            {
+                var config = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
 
-            var connectionString = config.GetConnectionString("DefaultConnection");
-            optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+                var connectionString = config.GetConnectionString("DefaultConnection");
+                optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            }
         }
     }
 }

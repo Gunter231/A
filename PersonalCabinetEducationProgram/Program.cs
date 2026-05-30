@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using PersonalCabinetEducationProgram.Data;
 using PersonalCabinetEducationProgram.Models;
 using PersonalCabinetEducationProgram.Services;
 
@@ -5,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+builder.Services.AddDbContext<ApplicationDbContext>();
 
 builder.Services.Configure<FileStorageSettings>(builder.Configuration.GetSection("FileStorageSettings"));
 builder.Services.AddScoped<IFileStorageService, FileSystemStorageService>();
