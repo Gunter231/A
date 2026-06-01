@@ -1,6 +1,6 @@
-﻿@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
+@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
 @{
-    ViewData["Title"] = "Руководитель образовательной программы";
+    ViewData["Title"] = "Согласующий";
 
     var programs = ViewBag.Programs as List<PersonalCabinetEducationProgram.Models.EducationalProgram>;
     int selectedProgramId = (int)ViewBag.SelectedProgramId;
@@ -14,10 +14,10 @@
     var gia = Model.Where(e => e.TypeElement == "GIA").ToList();
 
     int countNew = Model.Count(e => string.IsNullOrEmpty(e.StatusApprovals));
+    int countUploaded = Model.Count(e => e.StatusApprovals == "Загружено");
+    int countOnReview = Model.Count(e => e.StatusApprovals == "На рассмотрении");
     int countApproved = Model.Count(e => e.StatusApprovals == "Согласовано");
     int countRejected = Model.Count(e => e.StatusApprovals == "На доработку");
-    int countOnReview = Model.Count(e => e.StatusApprovals == "На рассмотрении");
-    int countUploaded = Model.Count(e => e.StatusApprovals == "Загружено");
     int countPublished = Model.Count(e => e.StatusApprovals == "Опубликовано на сайте");
 }
 
@@ -40,7 +40,7 @@
 
         <div class="col-12 col-lg-2 bg-white border-end" style="min-height: calc(100vh - 56px); overflow-y: auto;">
             <div class="p-2">
-                <div class="fw-bold px-2 py-2 text-primary small text-uppercase">Мои программы</div>
+                <div class="fw-bold px-2 py-2 text-primary small text-uppercase">Программы на согласовании</div>
 
                 @if (programs != null)
                 {
@@ -129,7 +129,7 @@
                                             <div class="position-relative d-inline-block" style="width:140px;height:140px;">
                                                 <svg viewBox="0 0 36 36" class="w-100 h-100">
                                                     @{
-                                                        double total = Math.Max(countNew + countApproved + countRejected + countOnReview, 1);
+                                                        double total = Math.Max(countOnReview + countApproved + countRejected, 1);
                                                         double pctApproved = (countApproved / total) * 100;
                                                         double pctRejected = (countRejected / total) * 100;
                                                         double pctOnReview = (countOnReview / total) * 100;
@@ -157,16 +157,16 @@
                                             <table class="table table-borderless align-middle mb-0 small">
                                                 <tbody>
                                                     <tr>
-                                                        <td><span class="d-inline-block rounded-circle bg-primary" style="width:10px;height:10px;"></span> Новые</td>
-                                                        <td class="fw-bold">@countNew</td>
-                                                        <td><span class="d-inline-block rounded-circle bg-success" style="width:10px;height:10px;"></span> Согласовано</td>
-                                                        <td class="fw-bold">@countApproved</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><span class="d-inline-block rounded-circle bg-danger" style="width:10px;height:10px;"></span> Отклонено</td>
-                                                        <td class="fw-bold">@countRejected</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-warning" style="width:10px;height:10px;"></span> Загружено</td>
+                                                        <td class="fw-bold">@countUploaded</td>
                                                         <td><span class="d-inline-block rounded-circle bg-info" style="width:10px;height:10px;"></span> На рассмотрении</td>
                                                         <td class="fw-bold">@countOnReview</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><span class="d-inline-block rounded-circle bg-success" style="width:10px;height:10px;"></span> Согласовано</td>
+                                                        <td class="fw-bold">@countApproved</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-danger" style="width:10px;height:10px;"></span> На доработку</td>
+                                                        <td class="fw-bold">@countRejected</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
@@ -266,26 +266,22 @@
                                                     <a asp-action="Download" asp-route-elementId="@element.Id"
                                                        class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                                                 }
-                                                @if (element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
+                                                @if (element.StatusApprovals == "Загружено")
                                                 {
-                                                    <form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload" class="d-inline">
-                                                        <input type="hidden" name="elementId" value="@element.Id" />
-                                                        <label class="btn btn-outline-primary btn-sm mb-0" title="Загрузить файл">
-                                                            📤 <input type="file" name="file" accept=".pdf" style="display:none;" onchange="this.form.submit()" />
-                                                        </label>
-                                                    </form>
+                                                    <button type="button" class="btn btn-outline-info btn-sm" title="На рассмотрение"
+                                                            onclick="showReviewModal(@element.Id)">📤</button>
+                                                }
+                                                @if (element.StatusApprovals == "Загружено" || element.StatusApprovals == "На рассмотрении")
+                                                {
+                                                    <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
+                                                            onclick="showApproveModal(@element.Id)">✔️</button>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
+                                                            onclick="showRejectModal(@element.Id)">✖️</button>
                                                 }
                                                 <a asp-action="Comments" asp-route-elementId="@element.Id"
                                                    class="btn btn-outline-secondary btn-sm" title="Комментарии">💬</a>
                                                 <a asp-action="History" asp-route-elementId="@element.Id"
                                                    class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                                                @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                                                {
-                                                    <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                                            onclick="showApprovalModal(@element.Id, 'Согласовано')">✔️</button>
-                                                    <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
-                                                            onclick="showApprovalModal(@element.Id, 'На доработку')">✖️</button>
-                                                }
                                             </div>
                                         </td>
                                     </tr>
@@ -303,42 +299,70 @@
         </div>
     </div>
 </div>
-                                        </td>
-                                    </tr>
-                                }
-                                @if (!tabElements.Any())
-                                {
-                                    <tr><td colspan="5" class="text-center text-muted py-3">Элементы не найдены</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="approvalModal" tabindex="-1">
+<div class="modal fade" id="approveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content rounded-4">
-            <div class="modal-header">
-                <h5 class="modal-title">Подтверждение статуса</h5>
+            <div class="modal-header bg-success-subtle">
+                <h5 class="modal-title text-success">Согласование элемента</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" asp-action="UpdateStatus">
+            <form method="post" asp-action="Approve">
                 <div class="modal-body">
-                    <input type="hidden" name="elementId" id="approvalElementId" />
-                    <input type="hidden" name="newStatus" id="approvalNewStatus" />
+                    <input type="hidden" name="elementId" id="approveElementId" />
                     <div class="mb-3">
-                        <label class="form-label">Комментарий к решению</label>
+                        <label class="form-label">Комментарий к согласованию</label>
                         <textarea name="comment" class="form-control" rows="3" placeholder="Введите комментарий (необязательно)"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Подтвердить</button>
+                    <button type="submit" class="btn btn-success">Согласовать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4">
+            <div class="modal-header bg-danger-subtle">
+                <h5 class="modal-title text-danger">Отправка на доработку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" asp-action="Reject">
+                <div class="modal-body">
+                    <input type="hidden" name="elementId" id="rejectElementId" />
+                    <div class="mb-3">
+                        <label class="form-label">Причина отклонения</label>
+                        <textarea name="comment" class="form-control" rows="3" placeholder="Укажите причину отправки на доработку"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">На доработку</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="reviewModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4">
+            <div class="modal-header bg-info-subtle">
+                <h5 class="modal-title text-info">Отправить на рассмотрение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" asp-action="SendForReview">
+                <div class="modal-body">
+                    <input type="hidden" name="elementId" id="reviewElementId" />
+                    <p>Отправить элемент на рассмотрение?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-info">Отправить</button>
                 </div>
             </form>
         </div>
@@ -370,37 +394,22 @@
                         <a asp-action="Download" asp-route-elementId="@element.Id"
                            class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                     }
-                    @if (element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
+                    @if (element.StatusApprovals == "Загружено")
                     {
-                        <form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload" class="d-inline">
-                            <input type="hidden" name="elementId" value="@element.Id" />
-                            <label class="btn btn-outline-primary btn-sm mb-0" title="Загрузить файл">
-                                📤 <input type="file" name="file" accept=".pdf" style="display:none;" onchange="this.form.submit()" />
-                            </label>
-                        </form>
+                        <button type="button" class="btn btn-outline-info btn-sm" title="На рассмотрение"
+                                onclick="showReviewModal(@element.Id)">📤</button>
                     }
-                    <a asp-action="Comments" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if(commentCount > 0){<span>@commentCount</span>}</a>
-                    <a asp-action="History" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                    @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
+                    @if (element.StatusApprovals == "Загружено" || element.StatusApprovals == "На рассмотрении")
                     {
                         <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                onclick="showApprovalModal(@element.Id, 'Согласовано')">✔️</button>
+                                onclick="showApproveModal(@element.Id)">✔️</button>
                         <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
-                                onclick="showApprovalModal(@element.Id, 'На доработку')">✖️</button>
+                                onclick="showRejectModal(@element.Id)">✖️</button>
                     }
                     <a asp-action="Comments" asp-route-elementId="@element.Id"
                        class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if(commentCount > 0){<span>@commentCount</span>}</a>
                     <a asp-action="History" asp-route-elementId="@element.Id"
                        class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                    @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                    {
-                        <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                onclick="showApprovalModal(@element.Id, 'Принято')">✔️</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" title="Отклонить"
-                                onclick="showApprovalModal(@element.Id, 'Отклонено')">✖️</button>
-                    }
                 </div>
             </td>
         </tr>
@@ -409,10 +418,19 @@
 
 @section Scripts {
     <script>
-        function showApprovalModal(elementId, status) {
-            document.getElementById('approvalElementId').value = elementId;
-            document.getElementById('approvalNewStatus').value = status;
-            var modal = new bootstrap.Modal(document.getElementById('approvalModal'));
+        function showApproveModal(elementId) {
+            document.getElementById('approveElementId').value = elementId;
+            var modal = new bootstrap.Modal(document.getElementById('approveModal'));
+            modal.show();
+        }
+        function showRejectModal(elementId) {
+            document.getElementById('rejectElementId').value = elementId;
+            var modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+            modal.show();
+        }
+        function showReviewModal(elementId) {
+            document.getElementById('reviewElementId').value = elementId;
+            var modal = new bootstrap.Modal(document.getElementById('reviewModal'));
             modal.show();
         }
     </script>

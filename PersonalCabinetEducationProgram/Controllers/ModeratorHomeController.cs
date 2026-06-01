@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PersonalCabinetEducationProgram.Data;
@@ -7,13 +7,13 @@ using PersonalCabinetEducationProgram.Services;
 
 namespace PersonalCabinetEducationProgram.Controllers
 {
-    public class ManagerHomeController : Controller
+    public class ModeratorHomeController : Controller
     {
         private readonly IFileStorageService _fileStorageService;
         private readonly FileStorageSettings _storageSettings;
         private readonly ApplicationDbContext _context;
 
-        public ManagerHomeController(
+        public ModeratorHomeController(
             IFileStorageService fileStorageService,
             IOptions<FileStorageSettings> storageSettings,
             ApplicationDbContext context)
@@ -49,39 +49,6 @@ namespace PersonalCabinetEducationProgram.Controllers
             return View(elements);
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Upload(int elementId, IFormFile file)
-        {
-            if (file != null && file.Length > 0)
-            {
-                var element = await _context.EducationalProgramElements.FindAsync(elementId);
-                if (element != null && element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
-                {
-                    string oldStatus = element.StatusApprovals;
-                    string uniqueFileName = await _fileStorageService.SaveFileAsync(file);
-                    element.FilePath = uniqueFileName;
-                    element.FileName = file.FileName;
-                    element.UploadDate = DateOnly.FromDateTime(DateTime.Now);
-                    element.StatusApprovals = "Загружено";
-
-                    _context.ElementStatusHistory.Add(new ElementStatusHistory
-                    {
-                        EducationalProgramElementId = elementId,
-                        UserId = 1,
-                        OldStatus = oldStatus,
-                        NewStatus = "Загружено",
-                        ChangeDate = DateTime.Now,
-                        Comment = $"Загружен файл: {file.FileName}"
-                    });
-
-                    await _context.SaveChangesAsync();
-                }
-            }
-
-            int progId = (await _context.EducationalProgramElements.FindAsync(elementId))?.EducationalProgramId ?? 1;
-            return RedirectToAction(nameof(Index), new { programId = progId });
-        }
-
         public async Task<IActionResult> Download(int elementId)
         {
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
@@ -115,30 +82,56 @@ namespace PersonalCabinetEducationProgram.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdateStatus(int elementId, string newStatus, string comment)
+        public async Task<IActionResult> Publish(int elementId, string comment)
         {
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             if (element == null)
                 return NotFound();
 
-            if (element.StatusApprovals == "Согласовано" || element.StatusApprovals == "Опубликовано на сайте")
-                return BadRequest("Нельзя изменить статус согласованного или опубликованного элемента");
+            if (element.StatusApprovals != "Согласовано")
+                return BadRequest("Только согласованные элементы могут быть опубликованы");
 
             string oldStatus = element.StatusApprovals;
-            element.StatusApprovals = newStatus;
+            element.StatusApprovals = "Опубликовано на сайте";
 
             _context.ElementStatusHistory.Add(new ElementStatusHistory
             {
                 EducationalProgramElementId = elementId,
-                UserId = 1,
+                UserId = 3,
                 OldStatus = oldStatus,
-                NewStatus = newStatus,
+                NewStatus = "Опубликовано на сайте",
                 ChangeDate = DateTime.Now,
-                Comment = comment ?? ""
+                Comment = comment ?? "Опубликовано на сайте"
             });
 
             await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(Index), new { programId = element.EducationalProgramId });
+        }
 
+        [HttpPost]
+        public async Task<IActionResult> Unpublish(int elementId, string comment)
+        {
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            if (element == null)
+                return NotFound();
+
+            if (element.StatusApprovals != "Опубликовано на сайте")
+                return BadRequest("Только опубликованные элементы могут быть сняты с публикации");
+
+            string oldStatus = element.StatusApprovals;
+            element.StatusApprovals = "Согласовано";
+
+            _context.ElementStatusHistory.Add(new ElementStatusHistory
+            {
+                EducationalProgramElementId = elementId,
+                UserId = 3,
+                OldStatus = oldStatus,
+                NewStatus = "Согласовано",
+                ChangeDate = DateTime.Now,
+                Comment = comment ?? "Снято с публикации"
+            });
+
+            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index), new { programId = element.EducationalProgramId });
         }
 
@@ -151,7 +144,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             var comment = new EducationalProgramElementComment
             {
                 EducationalProgramElementId = elementId,
-                UserId = 1,
+                UserId = 3,
                 DateTimeComment = DateTime.Now,
                 CommentContent = commentText,
                 Status = "Новый"
@@ -186,7 +179,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             ViewBag.History = history;
             ViewBag.Comments = comments;
 
-            return View();
+            return View("~/Views/ManagerHome/History.cshtml");
         }
 
         public async Task<IActionResult> Comments(int elementId)
@@ -202,7 +195,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                 .ToListAsync();
 
             ViewBag.Element = element;
-            return View(comments);
+            return View("~/Views/ManagerHome/Comments.cshtml", comments);
         }
     }
 }

@@ -1,6 +1,6 @@
-﻿@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
+@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
 @{
-    ViewData["Title"] = "Руководитель образовательной программы";
+    ViewData["Title"] = "Модератор";
 
     var programs = ViewBag.Programs as List<PersonalCabinetEducationProgram.Models.EducationalProgram>;
     int selectedProgramId = (int)ViewBag.SelectedProgramId;
@@ -14,10 +14,10 @@
     var gia = Model.Where(e => e.TypeElement == "GIA").ToList();
 
     int countNew = Model.Count(e => string.IsNullOrEmpty(e.StatusApprovals));
+    int countUploaded = Model.Count(e => e.StatusApprovals == "Загружено");
+    int countOnReview = Model.Count(e => e.StatusApprovals == "На рассмотрении");
     int countApproved = Model.Count(e => e.StatusApprovals == "Согласовано");
     int countRejected = Model.Count(e => e.StatusApprovals == "На доработку");
-    int countOnReview = Model.Count(e => e.StatusApprovals == "На рассмотрении");
-    int countUploaded = Model.Count(e => e.StatusApprovals == "Загружено");
     int countPublished = Model.Count(e => e.StatusApprovals == "Опубликовано на сайте");
 }
 
@@ -40,7 +40,7 @@
 
         <div class="col-12 col-lg-2 bg-white border-end" style="min-height: calc(100vh - 56px); overflow-y: auto;">
             <div class="p-2">
-                <div class="fw-bold px-2 py-2 text-primary small text-uppercase">Мои программы</div>
+                <div class="fw-bold px-2 py-2 text-primary small text-uppercase">Программы для публикации</div>
 
                 @if (programs != null)
                 {
@@ -129,22 +129,18 @@
                                             <div class="position-relative d-inline-block" style="width:140px;height:140px;">
                                                 <svg viewBox="0 0 36 36" class="w-100 h-100">
                                                     @{
-                                                        double total = Math.Max(countNew + countApproved + countRejected + countOnReview, 1);
+                                                        double total = Math.Max(countApproved + countPublished, 1);
                                                         double pctApproved = (countApproved / total) * 100;
-                                                        double pctRejected = (countRejected / total) * 100;
-                                                        double pctOnReview = (countOnReview / total) * 100;
+                                                        double pctPublished = (countPublished / total) * 100;
                                                         double circumference = 2 * Math.PI * 15.91549430918954;
                                                         double offsetApproved = circumference - (pctApproved / 100 * circumference);
-                                                        double offsetRejected = offsetApproved - (pctRejected / 100 * circumference);
-                                                        double offsetOnReview = offsetRejected - (pctOnReview / 100 * circumference);
+                                                        double offsetPublished = offsetApproved - (pctPublished / 100 * circumference);
                                                     }
                                                     <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#e9ecef" stroke-width="3.5"></circle>
                                                     <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#198754" stroke-width="3.5"
                                                             stroke-dasharray="@(pctApproved.ToString("F1")) @(100 - pctApproved)" stroke-dashoffset="25"></circle>
-                                                    <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#dc3545" stroke-width="3.5"
-                                                            stroke-dasharray="@(pctRejected.ToString("F1")) @(100 - pctRejected)" stroke-dashoffset="@(25 - pctApproved).ToString("F1")"></circle>
-                                                    <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#0dcaf0" stroke-width="3.5"
-                                                            stroke-dasharray="@(pctOnReview.ToString("F1")) @(100 - pctOnReview)" stroke-dashoffset="@(25 - pctApproved - pctRejected).ToString("F1")"></circle>
+                                                    <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#0d6efd" stroke-width="3.5"
+                                                            stroke-dasharray="@(pctPublished.ToString("F1")) @(100 - pctPublished)" stroke-dashoffset="@(25 - pctApproved).ToString("F1")"></circle>
                                                 </svg>
                                                 <div class="position-absolute top-50 start-50 translate-middle text-center">
                                                     <div class="fw-bold fs-4">@Model.Count()</div>
@@ -157,16 +153,16 @@
                                             <table class="table table-borderless align-middle mb-0 small">
                                                 <tbody>
                                                     <tr>
-                                                        <td><span class="d-inline-block rounded-circle bg-primary" style="width:10px;height:10px;"></span> Новые</td>
-                                                        <td class="fw-bold">@countNew</td>
                                                         <td><span class="d-inline-block rounded-circle bg-success" style="width:10px;height:10px;"></span> Согласовано</td>
                                                         <td class="fw-bold">@countApproved</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-primary" style="width:10px;height:10px;"></span> Опубликовано</td>
+                                                        <td class="fw-bold">@countPublished</td>
                                                     </tr>
                                                     <tr>
-                                                        <td><span class="d-inline-block rounded-circle bg-danger" style="width:10px;height:10px;"></span> Отклонено</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-warning" style="width:10px;height:10px;"></span> Загружено</td>
+                                                        <td class="fw-bold">@countUploaded</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-danger" style="width:10px;height:10px;"></span> На доработку</td>
                                                         <td class="fw-bold">@countRejected</td>
-                                                        <td><span class="d-inline-block rounded-circle bg-info" style="width:10px;height:10px;"></span> На рассмотрении</td>
-                                                        <td class="fw-bold">@countOnReview</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
@@ -266,26 +262,20 @@
                                                     <a asp-action="Download" asp-route-elementId="@element.Id"
                                                        class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                                                 }
-                                                @if (element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
+                                                @if (element.StatusApprovals == "Согласовано")
                                                 {
-                                                    <form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload" class="d-inline">
-                                                        <input type="hidden" name="elementId" value="@element.Id" />
-                                                        <label class="btn btn-outline-primary btn-sm mb-0" title="Загрузить файл">
-                                                            📤 <input type="file" name="file" accept=".pdf" style="display:none;" onchange="this.form.submit()" />
-                                                        </label>
-                                                    </form>
+                                                    <button type="button" class="btn btn-outline-primary btn-sm" title="Опубликовать"
+                                                            onclick="showPublishModal(@element.Id)">🌐</button>
+                                                }
+                                                @if (element.StatusApprovals == "Опубликовано на сайте")
+                                                {
+                                                    <button type="button" class="btn btn-outline-warning btn-sm" title="Снять с публикации"
+                                                            onclick="showUnpublishModal(@element.Id)">🚫</button>
                                                 }
                                                 <a asp-action="Comments" asp-route-elementId="@element.Id"
                                                    class="btn btn-outline-secondary btn-sm" title="Комментарии">💬</a>
                                                 <a asp-action="History" asp-route-elementId="@element.Id"
                                                    class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                                                @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                                                {
-                                                    <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                                            onclick="showApprovalModal(@element.Id, 'Согласовано')">✔️</button>
-                                                    <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
-                                                            onclick="showApprovalModal(@element.Id, 'На доработку')">✖️</button>
-                                                }
                                             </div>
                                         </td>
                                     </tr>
@@ -303,42 +293,49 @@
         </div>
     </div>
 </div>
-                                        </td>
-                                    </tr>
-                                }
-                                @if (!tabElements.Any())
-                                {
-                                    <tr><td colspan="5" class="text-center text-muted py-3">Элементы не найдены</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="approvalModal" tabindex="-1">
+<div class="modal fade" id="publishModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content rounded-4">
-            <div class="modal-header">
-                <h5 class="modal-title">Подтверждение статуса</h5>
+            <div class="modal-header bg-primary-subtle">
+                <h5 class="modal-title text-primary">Публикация на сайте</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="post" asp-action="UpdateStatus">
+            <form method="post" asp-action="Publish">
                 <div class="modal-body">
-                    <input type="hidden" name="elementId" id="approvalElementId" />
-                    <input type="hidden" name="newStatus" id="approvalNewStatus" />
+                    <input type="hidden" name="elementId" id="publishElementId" />
                     <div class="mb-3">
-                        <label class="form-label">Комментарий к решению</label>
+                        <label class="form-label">Комментарий к публикации</label>
                         <textarea name="comment" class="form-control" rows="3" placeholder="Введите комментарий (необязательно)"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Подтвердить</button>
+                    <button type="submit" class="btn btn-primary">Опубликовать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="unpublishModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title text-warning">Снять с публикации</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" asp-action="Unpublish">
+                <div class="modal-body">
+                    <input type="hidden" name="elementId" id="unpublishElementId" />
+                    <div class="mb-3">
+                        <label class="form-label">Причина снятия с публикации</label>
+                        <textarea name="comment" class="form-control" rows="3" placeholder="Укажите причину"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning">Снять с публикации</button>
                 </div>
             </form>
         </div>
@@ -370,37 +367,20 @@
                         <a asp-action="Download" asp-route-elementId="@element.Id"
                            class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                     }
-                    @if (element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
+                    @if (element.StatusApprovals == "Согласовано")
                     {
-                        <form method="post" enctype="multipart/form-data" asp-controller="ManagerHome" asp-action="Upload" class="d-inline">
-                            <input type="hidden" name="elementId" value="@element.Id" />
-                            <label class="btn btn-outline-primary btn-sm mb-0" title="Загрузить файл">
-                                📤 <input type="file" name="file" accept=".pdf" style="display:none;" onchange="this.form.submit()" />
-                            </label>
-                        </form>
+                        <button type="button" class="btn btn-outline-primary btn-sm" title="Опубликовать"
+                                onclick="showPublishModal(@element.Id)">🌐</button>
+                    }
+                    @if (element.StatusApprovals == "Опубликовано на сайте")
+                    {
+                        <button type="button" class="btn btn-outline-warning btn-sm" title="Снять с публикации"
+                                onclick="showUnpublishModal(@element.Id)">🚫</button>
                     }
                     <a asp-action="Comments" asp-route-elementId="@element.Id"
                        class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if(commentCount > 0){<span>@commentCount</span>}</a>
                     <a asp-action="History" asp-route-elementId="@element.Id"
                        class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                    @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                    {
-                        <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                onclick="showApprovalModal(@element.Id, 'Согласовано')">✔️</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
-                                onclick="showApprovalModal(@element.Id, 'На доработку')">✖️</button>
-                    }
-                    <a asp-action="Comments" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if(commentCount > 0){<span>@commentCount</span>}</a>
-                    <a asp-action="History" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                    @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                    {
-                        <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                onclick="showApprovalModal(@element.Id, 'Принято')">✔️</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" title="Отклонить"
-                                onclick="showApprovalModal(@element.Id, 'Отклонено')">✖️</button>
-                    }
                 </div>
             </td>
         </tr>
@@ -409,10 +389,14 @@
 
 @section Scripts {
     <script>
-        function showApprovalModal(elementId, status) {
-            document.getElementById('approvalElementId').value = elementId;
-            document.getElementById('approvalNewStatus').value = status;
-            var modal = new bootstrap.Modal(document.getElementById('approvalModal'));
+        function showPublishModal(elementId) {
+            document.getElementById('publishElementId').value = elementId;
+            var modal = new bootstrap.Modal(document.getElementById('publishModal'));
+            modal.show();
+        }
+        function showUnpublishModal(elementId) {
+            document.getElementById('unpublishElementId').value = elementId;
+            var modal = new bootstrap.Modal(document.getElementById('unpublishModal'));
             modal.show();
         }
     </script>
