@@ -33,10 +33,10 @@ namespace PersonalCabinetEducationProgram.Data
 
             // Seed Users
             modelBuilder.Entity<User>().HasData(
-                new User { Id = 1, FullName = "Иванов Иван Иванович", LinkRole = "Manager", Post = "Заведующий кафедрой" },
-                new User { Id = 2, FullName = "Петрова Анна Сергеевна", LinkRole = "Approver", Post = "Декан факультета" },
-                new User { Id = 3, FullName = "Сидоров Петр Алексеевич", LinkRole = "Moderator", Post = "Модератор" },
-                new User { Id = 4, FullName = "Козлова Мария Ивановна", LinkRole = "Admin", Post = "Администратор" }
+                new User { Id = 1, Username = "manager", PasswordHash = "866485796cfa8d7c0cf7111640205b83076433547577511d81f8030ae99ecea5", FullName = "Иванов Иван Иванович", LinkRole = "Manager", Post = "Заведующий кафедрой", ApprovalStatus = "Approved" },
+                new User { Id = 2, Username = "approver", PasswordHash = "1c391319644c0c6e9f5955e44e55862a8fd27b3b9d9863456500096ccf512db3", FullName = "Петрова Анна Сергеевна", LinkRole = "Approver", Post = "Декан факультета", ApprovalStatus = "Approved" },
+                new User { Id = 3, Username = "moderator", PasswordHash = "4c8425b174053ea6935b29c2b0e0aa4e2eab1a01b784e6ac91b8bdce9c26235a", FullName = "Сидоров Петр Алексеевич", LinkRole = "Moderator", Post = "Модератор", ApprovalStatus = "Approved" },
+                new User { Id = 4, Username = "admin", PasswordHash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", FullName = "Козлова Мария Ивановна", LinkRole = "Admin", Post = "Администратор", ApprovalStatus = "Approved" }
             );
 
             // Seed Faculties

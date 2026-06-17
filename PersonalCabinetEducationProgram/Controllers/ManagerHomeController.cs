@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PersonalCabinetEducationProgram.Data;
@@ -7,6 +8,7 @@ using PersonalCabinetEducationProgram.Services;
 
 namespace PersonalCabinetEducationProgram.Controllers
 {
+    [Authorize(Roles = "Manager,Admin")]
     public class ManagerHomeController : Controller
     {
         private readonly IFileStorageService _fileStorageService;
@@ -23,14 +25,23 @@ namespace PersonalCabinetEducationProgram.Controllers
             _context = context;
         }
 
+        private int GetCurrentUserId()
+        {
+            return int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+        }
+
         public async Task<IActionResult> Index(int? programId, string tab = "disciplines")
         {
+            var currentUserId = GetCurrentUserId();
+
             var programs = await _context.EducationalPrograms
+                .Where(p => User.IsInRole("Admin") || p.UserId == currentUserId || p.Managers.Any(m => m.UserId == currentUserId))
                 .Include(p => p.Assignments).ThenInclude(a => a.Department)
                 .Include(p => p.Assignments).ThenInclude(a => a.Faculty)
+                .Include(p => p.Managers)
                 .ToListAsync();
 
-            var selectedProgramId = programId ?? programs.FirstOrDefault()?.Id;
+            int? selectedProgramId = programId ?? programs.FirstOrDefault()?.Id;
 
             var elements = await _context.EducationalProgramElements
                 .Where(e => e.EducationalProgramId == selectedProgramId)
@@ -67,7 +78,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                     _context.ElementStatusHistory.Add(new ElementStatusHistory
                     {
                         EducationalProgramElementId = elementId,
-                        UserId = 1,
+                        UserId = GetCurrentUserId(),
                         OldStatus = oldStatus,
                         NewStatus = "Загружено",
                         ChangeDate = DateTime.Now,
@@ -130,7 +141,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             _context.ElementStatusHistory.Add(new ElementStatusHistory
             {
                 EducationalProgramElementId = elementId,
-                UserId = 1,
+                UserId = GetCurrentUserId(),
                 OldStatus = oldStatus,
                 NewStatus = newStatus,
                 ChangeDate = DateTime.Now,
@@ -151,7 +162,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             var comment = new EducationalProgramElementComment
             {
                 EducationalProgramElementId = elementId,
-                UserId = 1,
+                UserId = GetCurrentUserId(),
                 DateTimeComment = DateTime.Now,
                 CommentContent = commentText,
                 Status = "Новый"
@@ -185,6 +196,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             ViewBag.Element = element;
             ViewBag.History = history;
             ViewBag.Comments = comments;
+            ViewBag.ReturnController = nameof(ManagerHomeController).Replace("Controller", "");
 
             return View();
         }
@@ -202,6 +214,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                 .ToListAsync();
 
             ViewBag.Element = element;
+            ViewBag.ReturnController = nameof(ManagerHomeController).Replace("Controller", "");
             return View(comments);
         }
     }

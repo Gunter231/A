@@ -9,12 +9,12 @@ INSERT INTO roles (Id, Name, Description) VALUES
 ON DUPLICATE KEY UPDATE Name=VALUES(Name);
 
 -- Пользователи
-INSERT INTO users (Id, full_name, link_role, post) VALUES
-(1, 'Иванов Иван Иванович', 'Manager', 'Заведующий кафедрой'),
-(2, 'Петрова Анна Сергеевна', 'Approver', 'Декан факультета'),
-(3, 'Сидоров Петр Алексеевич', 'Moderator', 'Модератор'),
-(4, 'Козлова Мария Ивановна', 'Admin', 'Администратор')
-ON DUPLICATE KEY UPDATE full_name=VALUES(full_name);
+INSERT INTO users (Id, username, password_hash, full_name, link_role, post, approval_status, rejection_reason) VALUES
+(1, 'manager', '866485796cfa8d7c0cf7111640205b83076433547577511d81f8030ae99ecea5', 'Иванов Иван Иванович', 'Manager', 'Заведующий кафедрой', 'Approved', NULL),
+(2, 'approver', '1c391319644c0c6e9f5955e44e55862a8fd27b3b9d9863456500096ccf512db3', 'Петрова Анна Сергеевна', 'Approver', 'Декан факультета', 'Approved', NULL),
+(3, 'moderator', '4c8425b174053ea6935b29c2b0e0aa4e2eab1a01b784e6ac91b8bdce9c26235a', 'Сидоров Петр Алексеевич', 'Moderator', 'Модератор', 'Approved', NULL),
+(4, 'admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'Козлова Мария Ивановна', 'Admin', 'Администратор', 'Approved', NULL)
+ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), username=VALUES(username), password_hash=VALUES(password_hash), approval_status=VALUES(approval_status), rejection_reason=VALUES(rejection_reason);
 
 -- Факультеты
 INSERT INTO facultys (Id, Name) VALUES

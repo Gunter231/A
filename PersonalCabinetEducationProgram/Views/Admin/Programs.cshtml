@@ -1,8 +1,9 @@
 @model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgram>
-@{
+@{ 
     ViewData["Title"] = "Управление ОПОП";
     var departments = ViewBag.Departments as List<PersonalCabinetEducationProgram.Models.Departments>;
     var faculties = ViewBag.Facultys as List<PersonalCabinetEducationProgram.Models.Facultys>;
+    var managers = ViewBag.Managers as List<PersonalCabinetEducationProgram.Models.User>;
 }
 
 <div class="container py-4">
@@ -23,6 +24,7 @@
                         <th>Факультет</th>
                         <th>Статус</th>
                         <th>Руководитель</th>
+                        <th>Действия</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -47,7 +49,49 @@
                                 <span class="badge @statusClass">@program.Status</span>
                             </td>
                             <td class="small">@program.User?.FullName</td>
+                            <td>
+                                <button type="button" class="btn btn-outline-primary btn-sm"
+                                        data-bs-toggle="modal" data-bs-target="#assignManagerModal_@program.Id">
+                                    Назначить
+                                </button>
+                            </td>
                         </tr>
+
+                        <div class="modal fade" id="assignManagerModal_@program.Id" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content rounded-4">
+                                    <form method="post" asp-action="AssignProgramManager">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Назначить руководителя</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <input type="hidden" name="programId" value="@program.Id" />
+                                            <div class="mb-3">
+                                                <div class="fw-semibold mb-1">@program.CodeReferral @program.Name</div>
+                                                <div class="text-muted small">Текущий руководитель: @(program.User?.FullName ?? "не назначен")</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Новый руководитель</label>
+                                                <select name="managerUserId" class="form-select">
+                                                    @if (managers != null)
+                                                    {
+                                                        @foreach (var manager in managers)
+                                                        {
+                                                            <option value="@manager.Id" selected="@(program.UserId == manager.Id)">@manager.FullName</option>
+                                                        }
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     }
                 </tbody>
             </table>
@@ -107,6 +151,18 @@
                                         @foreach (var f in faculties)
                                         {
                                             <option value="@f.Id">@f.Name</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Руководитель</label>
+                                <select name="managerUserId" class="form-select">
+                                    @if (managers != null)
+                                    {
+                                        @foreach (var manager in managers)
+                                        {
+                                            <option value="@manager.Id">@manager.FullName</option>
                                         }
                                     }
                                 </select>

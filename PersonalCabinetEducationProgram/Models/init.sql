@@ -11,9 +11,14 @@ CREATE TABLE IF NOT EXISTS roles (
 -- Таблица пользователей
 CREATE TABLE IF NOT EXISTS users (
     Id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(100) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
     full_name LONGTEXT NOT NULL,
     link_role LONGTEXT NOT NULL,
-    post LONGTEXT NOT NULL
+    post LONGTEXT NOT NULL,
+    approval_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    rejection_reason LONGTEXT NULL,
+    CONSTRAINT UQ_users_username UNIQUE (username)
 ) ENGINE=InnoDB;
 
 -- Таблица факультетов

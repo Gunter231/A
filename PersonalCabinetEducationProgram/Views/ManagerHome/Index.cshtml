@@ -1,9 +1,9 @@
-﻿@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
+@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
 @{
     ViewData["Title"] = "Руководитель образовательной программы";
 
     var programs = ViewBag.Programs as List<PersonalCabinetEducationProgram.Models.EducationalProgram>;
-    int selectedProgramId = (int)ViewBag.SelectedProgramId;
+    int? selectedProgramId = ViewBag.SelectedProgramId as int?;
     var selectedProgram = programs?.FirstOrDefault(p => p.Id == selectedProgramId);
     string activeTab = ViewBag.ActiveTab as string ?? "disciplines";
     var allComments = ViewBag.Comments as List<PersonalCabinetEducationProgram.Models.EducationalProgramElementComment>;
@@ -21,39 +21,22 @@
     int countPublished = Model.Count(e => e.StatusApprovals == "Опубликовано на сайте");
 }
 
-<style>
-    .sidebar-item:hover { background: #f0f4ff; }
-    .sidebar-item.active { background: #e0e8ff; border-left: 3px solid #0d6efd; }
-    .status-badge { font-size: 0.78rem; padding: 3px 10px; border-radius: 20px; }
-    .tab-custom { cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
-    .tab-custom:hover { border-bottom-color: #0d6efd; }
-    .tab-custom.active { border-bottom-color: #0d6efd; color: #0d6efd; font-weight: 600; }
-    .modal-pdf { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: none; }
-    .modal-pdf.show { display: flex; align-items: center; justify-content: center; }
-    .modal-pdf iframe { width: 90%; height: 90%; border: none; background: white; border-radius: 8px; }
-    .history-line { border-left: 2px solid #dee2e6; padding-left: 16px; margin-left: 8px; }
-    .comment-bubble { background: #f8f9fa; border-radius: 12px; padding: 10px 14px; border: 1px solid #e9ecef; }
-</style>
-
-<div class="container-fluid p-0 m-0" style="min-height: calc(100vh - 56px);">
+<div class="container-fluid p-0 m-0 app-shell">
     <div class="row g-0 m-0">
-
-        <div class="col-12 col-lg-2 bg-white border-end" style="min-height: calc(100vh - 56px); overflow-y: auto;">
+        <div class="col-12 col-lg-2 app-sidebar">
             <div class="p-2">
-                <div class="fw-bold px-2 py-2 text-primary small text-uppercase">Мои программы</div>
+                <div class="sidebar-title">Мои программы</div>
 
                 @if (programs != null)
                 {
-                    var grouped = programs
-                        .GroupBy(p => p.EducationalLevel)
-                        .OrderBy(g => g.Key);
+                    var grouped = programs.GroupBy(p => p.EducationalLevel).OrderBy(g => g.Key);
 
                     foreach (var group in grouped)
                     {
                         var groupKey = group.Key?.Replace(" ", "") ?? "unknown";
                         <div class="mb-1">
                             <div class="accordion" id="sidebar_@groupKey">
-                                <div class="accordion-item border-0">
+                                <div class="accordion-item border-0 bg-transparent">
                                     <h2 class="accordion-header">
                                         <button class="accordion-button collapsed bg-white shadow-none px-2 py-2 fw-semibold small"
                                                 type="button" data-bs-toggle="collapse"
@@ -69,10 +52,10 @@
                                                 <a asp-action="Index" asp-route-programId="@prog.Id"
                                                    class="d-block text-decoration-none py-1 px-2 rounded mb-1 sidebar-item @(prog.Id == selectedProgramId ? "active" : "")">
                                                     <div class="small fw-semibold text-dark">@prog.CodeReferral</div>
-                                                    <div class="small text-muted" style="font-size:0.75rem;">@prog.Name</div>
+                                                    <div class="small text-muted app-small">@prog.Name</div>
                                                     @if (assignment?.Department != null)
                                                     {
-                                                        <div class="text-muted" style="font-size:0.68rem;">@assignment.Department.Name</div>
+                                                        <div class="text-muted app-caption">@assignment.Department.Name</div>
                                                     }
                                                 </a>
                                             }
@@ -86,9 +69,8 @@
             </div>
         </div>
 
-        <div class="col-12 col-lg-10 p-0" style="min-height: calc(100vh - 56px);">
+        <div class="col-12 col-lg-10 p-0 app-content">
             <div class="p-3 p-lg-4">
-
                 @if (selectedProgram != null)
                 {
                     <div class="row g-3 mb-4">
@@ -96,9 +78,7 @@
                             <div class="card shadow-sm rounded-4 h-100">
                                 <div class="card-body p-4">
                                     <h4 class="fw-bold mb-2">@selectedProgram.CodeReferral «@selectedProgram.Name»</h4>
-                                    @{
-                                        var assignment = selectedProgram.Assignments?.FirstOrDefault();
-                                    }
+                                    @{ var assignment = selectedProgram.Assignments?.FirstOrDefault(); }
                                     @if (assignment != null)
                                     {
                                         <p class="mb-1"><strong>Кафедра:</strong> @assignment.Department?.Name</p>
@@ -107,8 +87,7 @@
                                     <p class="mb-1"><strong>Уровень:</strong> @selectedProgram.EducationalLevel</p>
                                     <div class="d-flex align-items-center gap-2 mt-2">
                                         <span>Статус программы:</span>
-                                        @{
-                                            var progStatusClass = selectedProgram.Status switch
+                                        @{ var progStatusClass = selectedProgram.Status switch
                                             {
                                                 "Согласована" => "bg-success-subtle text-success",
                                                 "Опубликована" => "bg-primary-subtle text-primary",
@@ -129,14 +108,10 @@
                                             <div class="position-relative d-inline-block" style="width:140px;height:140px;">
                                                 <svg viewBox="0 0 36 36" class="w-100 h-100">
                                                     @{
-                                                        double total = Math.Max(countNew + countApproved + countRejected + countOnReview, 1);
+                                                        double total = Math.Max(countNew + countApproved + countRejected + countOnReview + countUploaded + countPublished, 1);
                                                         double pctApproved = (countApproved / total) * 100;
                                                         double pctRejected = (countRejected / total) * 100;
                                                         double pctOnReview = (countOnReview / total) * 100;
-                                                        double circumference = 2 * Math.PI * 15.91549430918954;
-                                                        double offsetApproved = circumference - (pctApproved / 100 * circumference);
-                                                        double offsetRejected = offsetApproved - (pctRejected / 100 * circumference);
-                                                        double offsetOnReview = offsetRejected - (pctOnReview / 100 * circumference);
                                                     }
                                                     <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#e9ecef" stroke-width="3.5"></circle>
                                                     <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#198754" stroke-width="3.5"
@@ -157,16 +132,22 @@
                                             <table class="table table-borderless align-middle mb-0 small">
                                                 <tbody>
                                                     <tr>
-                                                        <td><span class="d-inline-block rounded-circle bg-primary" style="width:10px;height:10px;"></span> Новые</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-secondary" style="width:10px;height:10px;"></span> Новые</td>
                                                         <td class="fw-bold">@countNew</td>
-                                                        <td><span class="d-inline-block rounded-circle bg-success" style="width:10px;height:10px;"></span> Согласовано</td>
-                                                        <td class="fw-bold">@countApproved</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-warning" style="width:10px;height:10px;"></span> Загружено</td>
+                                                        <td class="fw-bold">@countUploaded</td>
                                                     </tr>
                                                     <tr>
-                                                        <td><span class="d-inline-block rounded-circle bg-danger" style="width:10px;height:10px;"></span> Отклонено</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-success" style="width:10px;height:10px;"></span> Согласовано</td>
+                                                        <td class="fw-bold">@countApproved</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-danger" style="width:10px;height:10px;"></span> На доработку</td>
                                                         <td class="fw-bold">@countRejected</td>
+                                                    </tr>
+                                                    <tr>
                                                         <td><span class="d-inline-block rounded-circle bg-info" style="width:10px;height:10px;"></span> На рассмотрении</td>
                                                         <td class="fw-bold">@countOnReview</td>
+                                                        <td><span class="d-inline-block rounded-circle bg-primary" style="width:10px;height:10px;"></span> Опубликовано</td>
+                                                        <td class="fw-bold">@countPublished</td>
                                                     </tr>
                                                 </tbody>
                                             </table>
@@ -177,7 +158,17 @@
                         </div>
                     </div>
                 }
+                else
+                {
+                    <div class="card shadow-sm rounded-4 mb-4">
+                        <div class="card-body py-5 text-center text-muted">
+                            Для этого пользователя пока не назначено ни одной образовательной программы.
+                        </div>
+                    </div>
+                }
 
+                @if (selectedProgram != null)
+                {
                 <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h4 class="fw-bold mb-0">Основные элементы ОПОП</h4>
@@ -275,17 +266,8 @@
                                                         </label>
                                                     </form>
                                                 }
-                                                <a asp-action="Comments" asp-route-elementId="@element.Id"
-                                                   class="btn btn-outline-secondary btn-sm" title="Комментарии">💬</a>
-                                                <a asp-action="History" asp-route-elementId="@element.Id"
-                                                   class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                                                @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                                                {
-                                                    <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                                            onclick="showApprovalModal(@element.Id, 'Согласовано')">✔️</button>
-                                                    <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
-                                                            onclick="showApprovalModal(@element.Id, 'На доработку')">✖️</button>
-                                                }
+                                                <a asp-action="Comments" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="Комментарии">💬</a>
+                                                <a asp-action="History" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
                                             </div>
                                         </td>
                                     </tr>
@@ -298,49 +280,8 @@
                         </table>
                     </div>
                 </div>
-
+                }
             </div>
-        </div>
-    </div>
-</div>
-                                        </td>
-                                    </tr>
-                                }
-                                @if (!tabElements.Any())
-                                {
-                                    <tr><td colspan="5" class="text-center text-muted py-3">Элементы не найдены</td></tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="approvalModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content rounded-4">
-            <div class="modal-header">
-                <h5 class="modal-title">Подтверждение статуса</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="post" asp-action="UpdateStatus">
-                <div class="modal-body">
-                    <input type="hidden" name="elementId" id="approvalElementId" />
-                    <input type="hidden" name="newStatus" id="approvalNewStatus" />
-                    <div class="mb-3">
-                        <label class="form-label">Комментарий к решению</label>
-                        <textarea name="comment" class="form-control" rows="3" placeholder="Введите комментарий (необязательно)"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Подтвердить</button>
-                </div>
-            </form>
         </div>
     </div>
 </div>
@@ -365,10 +306,8 @@
                 <div class="d-flex gap-1 flex-wrap">
                     @if (!string.IsNullOrEmpty(element.FilePath))
                     {
-                        <a asp-action="Preview" asp-route-elementId="@element.Id"
-                           class="btn btn-outline-secondary btn-sm" title="Просмотр" target="_blank">📄</a>
-                        <a asp-action="Download" asp-route-elementId="@element.Id"
-                           class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
+                        <a asp-action="Preview" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="Просмотр" target="_blank">📄</a>
+                        <a asp-action="Download" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                     }
                     @if (element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
                     {
@@ -379,41 +318,10 @@
                             </label>
                         </form>
                     }
-                    <a asp-action="Comments" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if(commentCount > 0){<span>@commentCount</span>}</a>
-                    <a asp-action="History" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                    @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                    {
-                        <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                onclick="showApprovalModal(@element.Id, 'Согласовано')">✔️</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" title="На доработку"
-                                onclick="showApprovalModal(@element.Id, 'На доработку')">✖️</button>
-                    }
-                    <a asp-action="Comments" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if(commentCount > 0){<span>@commentCount</span>}</a>
-                    <a asp-action="History" asp-route-elementId="@element.Id"
-                       class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
-                    @if (!string.IsNullOrEmpty(element.FilePath) && element.StatusApprovals == "На рассмотрении")
-                    {
-                        <button type="button" class="btn btn-outline-success btn-sm" title="Согласовать"
-                                onclick="showApprovalModal(@element.Id, 'Принято')">✔️</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" title="Отклонить"
-                                onclick="showApprovalModal(@element.Id, 'Отклонено')">✖️</button>
-                    }
+                    <a asp-action="Comments" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="Комментарии (@commentCount)">💬 @if (commentCount > 0) {<span>@commentCount</span>}</a>
+                    <a asp-action="History" asp-route-elementId="@element.Id" class="btn btn-outline-secondary btn-sm" title="История">🕐</a>
                 </div>
             </td>
         </tr>
     }
-}
-
-@section Scripts {
-    <script>
-        function showApprovalModal(elementId, status) {
-            document.getElementById('approvalElementId').value = elementId;
-            document.getElementById('approvalNewStatus').value = status;
-            var modal = new bootstrap.Modal(document.getElementById('approvalModal'));
-            modal.show();
-        }
-    </script>
 }

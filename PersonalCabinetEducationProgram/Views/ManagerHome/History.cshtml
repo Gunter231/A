@@ -3,12 +3,13 @@
     var element = ViewBag.Element as PersonalCabinetEducationProgram.Models.EducationalProgramElement;
     var history = ViewBag.History as List<PersonalCabinetEducationProgram.Models.ElementStatusHistory>;
     var comments = ViewBag.Comments as List<PersonalCabinetEducationProgram.Models.EducationalProgramElementComment>;
+    var returnController = ViewBag.ReturnController as string ?? "ManagerHome";
 }
 
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <a asp-action="Index" asp-route-programId="@element?.EducationalProgramId" class="text-decoration-none">← Назад к программе</a>
+            <a asp-controller="@returnController" asp-action="Index" asp-route-programId="@element?.EducationalProgramId" class="text-decoration-none">← Назад к программе</a>
             <h4 class="fw-bold mt-2 mb-0">История: @element?.Name</h4>
             @if (!string.IsNullOrEmpty(element?.Description))
             {
