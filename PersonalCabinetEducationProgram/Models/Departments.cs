@@ -10,7 +10,7 @@ namespace PersonalCabinetEducationProgram.Models
         public int Id { get; set; }
 
         [Column("code_department")]
-        public string CodeDepartment { get; set; }
+        public string CodeDepartment { get;  set; }
 
         public string Name { get; set; }
     }
