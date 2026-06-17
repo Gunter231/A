@@ -15,7 +15,14 @@ namespace PersonalCabinetEducationProgram.Models
         [Column("user_id")]
         public int UserId { get; set; }
 
+        [Column("assigned_by_user_id")]
+        public int? AssignedByUserId { get; set; }
+
+        [Column("assigned_at")]
+        public DateTime? AssignedAt { get; set; }
+
         public EducationalProgram EducationalProgram { get; set; }
         public User User { get; set; }
+        public User? AssignedByUser { get; set; }
     }
 }

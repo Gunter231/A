@@ -1,4 +1,4 @@
-@model IEnumerable<PersonalCabinetEducationProgram.Models.ApproverAssignment>
+@model IEnumerable<PersonalCabinetEducationProgram.ViewModels.AssignmentListItemViewModel>
 @{
     ViewData["Title"] = "Назначения";
 }
@@ -14,7 +14,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Дата</th>
-                        <th>Согласующий</th>
+                        <th>Пользователь</th>
                         <th>Тип назначения</th>
                         <th>Куда назначен</th>
                         <th>Кто назначил</th>
@@ -23,14 +23,12 @@
                 <tbody>
                     @foreach (var assignment in Model)
                     {
-                        var targetType = assignment.FacultyId != null ? "Факультет" : "Кафедра";
-                        var targetName = assignment.Faculty?.Name ?? assignment.Department?.Name ?? "—";
                         <tr>
-                            <td>@assignment.AssignedAt.ToString("dd.MM.yyyy HH:mm")</td>
-                            <td class="fw-semibold">@assignment.ApproverUser?.FullName</td>
-                            <td>@targetType</td>
-                            <td>@targetName</td>
-                            <td>@assignment.AssignedByUser?.FullName</td>
+                            <td>@(assignment.AssignedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                            <td class="fw-semibold">@assignment.UserFullName</td>
+                            <td>@assignment.AssignmentType</td>
+                            <td>@assignment.TargetName</td>
+                            <td>@assignment.AssignedByFullName</td>
                         </tr>
                     }
                     @if (!Model.Any())

@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PersonalCabinetEducationProgram.Data;
@@ -15,21 +15,18 @@ namespace PersonalCabinetEducationProgram.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IFileStorageService _fileStorageService;
         private readonly FileStorageSettings _storageSettings;
+        private readonly ElementWorkflowService _workflowService;
 
         public AdminController(
             ApplicationDbContext context,
             IFileStorageService fileStorageService,
-            IOptions<FileStorageSettings> storageSettings)
+            IOptions<FileStorageSettings> storageSettings,
+            ElementWorkflowService workflowService)
         {
             _context = context;
             _fileStorageService = fileStorageService;
             _storageSettings = storageSettings.Value;
-        }
-
-        public async Task<IActionResult> Users()
-        {
-            var users = await _context.Users.ToListAsync();
-            return View(users);
+            _workflowService = workflowService;
         }
 
         private int GetCurrentUserId()
@@ -37,47 +34,53 @@ namespace PersonalCabinetEducationProgram.Controllers
             return int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         }
 
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Users()
+        {
+            var users = await _context.Users.Include(u => u.Role).ToListAsync();
+            return View(users);
+        }
+
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> ChangeApprovalStatus(int id, string approvalStatus, string? rejectionReason)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null)
-            {
                 return NotFound();
-            }
 
-            var currentUserId = GetCurrentUserId();
-            if (currentUserId == id && approvalStatus == "Rejected")
+            if (GetCurrentUserId() == id && approvalStatus == UserApprovalStatus.Rejected)
             {
                 TempData["UsersError"] = "Нельзя отклонить собственный аккаунт.";
                 return RedirectToAction(nameof(Users));
             }
 
             user.ApprovalStatus = approvalStatus;
-            user.RejectionReason = approvalStatus == "Rejected" ? rejectionReason : null;
+            user.RejectionReason = approvalStatus == UserApprovalStatus.Rejected ? rejectionReason : null;
 
             await _context.SaveChangesAsync();
-
             return RedirectToAction(nameof(Users));
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateUser(string fullName, string role, string post)
         {
-            var user = new User
+            _context.Users.Add(new User
             {
                 FullName = fullName,
                 LinkRole = role,
-                Post = post
-            };
+                RoleId = GetRoleId(role),
+                Post = post,
+                ApprovalStatus = UserApprovalStatus.Approved
+            });
 
-            _context.Users.Add(user);
             await _context.SaveChangesAsync();
-
             return RedirectToAction(nameof(Users));
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> EditUser(int id, string fullName, string role, string post)
         {
             var user = await _context.Users.FindAsync(id);
@@ -85,6 +88,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             {
                 user.FullName = fullName;
                 user.LinkRole = role;
+                user.RoleId = GetRoleId(role);
                 user.Post = post;
                 await _context.SaveChangesAsync();
             }
@@ -93,6 +97,7 @@ namespace PersonalCabinetEducationProgram.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var user = await _context.Users.FindAsync(id);
@@ -117,7 +122,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             ViewBag.Departments = await _context.Departments.ToListAsync();
             ViewBag.Facultys = await _context.Facultys.ToListAsync();
             ViewBag.Managers = await _context.Users
-                .Where(u => u.LinkRole == "Manager" && u.ApprovalStatus == "Approved")
+                .Where(u => u.RoleId == GetRoleId(AppRoles.Manager) && u.ApprovalStatus == UserApprovalStatus.Approved)
                 .OrderBy(u => u.FullName)
                 .ToListAsync();
 
@@ -135,9 +140,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (program == null)
-            {
                 return NotFound();
-            }
 
             return View(program);
         }
@@ -145,18 +148,48 @@ namespace PersonalCabinetEducationProgram.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Assignments()
         {
-            var assignments = await _context.ApproverAssignments
+            var approverAssignments = await _context.ApproverAssignments
                 .Include(a => a.ApproverUser)
                 .Include(a => a.AssignedByUser)
                 .Include(a => a.Faculty)
                 .Include(a => a.Department)
-                .OrderByDescending(a => a.AssignedAt)
                 .ToListAsync();
+
+            var managerAssignments = await _context.EducationalProgramManagers
+                .Include(m => m.User)
+                .Include(m => m.AssignedByUser)
+                .Include(m => m.EducationalProgram)
+                .ToListAsync();
+
+            var assignments = approverAssignments
+                .Select(a => new AssignmentListItemViewModel
+                {
+                    AssignedAt = a.AssignedAt,
+                    UserFullName = a.ApproverUser?.FullName ?? "—",
+                    AssignmentType = "Согласующий",
+                    TargetName = a.Faculty?.Name ?? a.Department?.Name ?? "—",
+                    AssignedByFullName = a.AssignedByUser?.FullName ?? "—"
+                })
+                .Concat(managerAssignments.Select(m => new AssignmentListItemViewModel
+                {
+                    AssignedAt = m.AssignedAt,
+                    UserFullName = m.User?.FullName ?? "—",
+                    AssignmentType = "Руководитель ОПОП",
+                    TargetName = m.EducationalProgram == null
+                        ? "—"
+                        : $"{m.EducationalProgram.CodeReferral} {m.EducationalProgram.Name}",
+                    AssignedByFullName = m.AssignedByUser?.FullName ?? "—"
+                }))
+                .OrderByDescending(a => a.AssignedAt.HasValue)
+                .ThenByDescending(a => a.AssignedAt)
+                .ThenBy(a => a.UserFullName)
+                .ToList();
 
             return View(assignments);
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateProgram(string codeReferral, string name, string educationalLevel,
             int yearApprovals, int departmentId, int facultyId, int? managerUserId)
         {
@@ -168,44 +201,47 @@ namespace PersonalCabinetEducationProgram.Controllers
                 Name = name,
                 EducationalLevel = educationalLevel,
                 YearApprovals = yearApprovals,
-                Status = "Разрабатывается",
+                Status = EducationalProgramStatus.Draft,
                 UserId = assignedManagerId
             };
 
             _context.EducationalPrograms.Add(program);
             await _context.SaveChangesAsync();
 
-            var assignment = new EducationalProgramAssignment
+            _context.EducationalProgramAssignments.Add(new EducationalProgramAssignment
             {
                 EducationalProgramId = program.Id,
                 DepartmentId = departmentId,
                 FacultyId = facultyId
-            };
+            });
 
-            _context.EducationalProgramAssignments.Add(assignment);
             _context.EducationalProgramManagers.Add(new EducationalProgramManager
             {
                 EducationalProgramId = program.Id,
-                UserId = assignedManagerId
+                UserId = assignedManagerId,
+                AssignedByUserId = GetCurrentUserId(),
+                AssignedAt = DateTime.Now
             });
-            await _context.SaveChangesAsync();
 
+            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Programs));
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AssignProgramManager(int programId, int managerUserId)
         {
             var program = await _context.EducationalPrograms
                 .Include(p => p.Managers)
                 .FirstOrDefaultAsync(p => p.Id == programId);
 
-            var manager = await _context.Users.FirstOrDefaultAsync(u => u.Id == managerUserId && u.LinkRole == "Manager" && u.ApprovalStatus == "Approved");
+            var manager = await _context.Users.FirstOrDefaultAsync(u =>
+                u.Id == managerUserId &&
+                u.RoleId == GetRoleId(AppRoles.Manager) &&
+                u.ApprovalStatus == UserApprovalStatus.Approved);
 
             if (program == null || manager == null)
-            {
                 return NotFound();
-            }
 
             program.UserId = managerUserId;
 
@@ -217,7 +253,9 @@ namespace PersonalCabinetEducationProgram.Controllers
             _context.EducationalProgramManagers.Add(new EducationalProgramManager
             {
                 EducationalProgramId = programId,
-                UserId = managerUserId
+                UserId = managerUserId,
+                AssignedByUserId = GetCurrentUserId(),
+                AssignedAt = DateTime.Now
             });
 
             await _context.SaveChangesAsync();
@@ -228,17 +266,11 @@ namespace PersonalCabinetEducationProgram.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateProgramElement(int programId, string typeElement, string name, string description)
         {
-            var programExists = await _context.EducationalPrograms.AnyAsync(p => p.Id == programId);
-            if (!programExists)
-            {
+            if (!await _context.EducationalPrograms.AnyAsync(p => p.Id == programId))
                 return NotFound();
-            }
 
-            var allowedTypes = new[] { "Main", "Discipline", "Practice", "GIA" };
-            if (!allowedTypes.Contains(typeElement))
-            {
+            if (!EducationalProgramElementTypes.All.Contains(typeElement))
                 return BadRequest("Неизвестный тип элемента ОПОП");
-            }
 
             _context.EducationalProgramElements.Add(new EducationalProgramElement
             {
@@ -246,7 +278,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                 TypeElement = typeElement,
                 Name = name,
                 Description = description ?? string.Empty,
-                StatusApprovals = string.Empty
+                StatusApprovals = ElementApprovalStatus.NotUploaded
             });
 
             await _context.SaveChangesAsync();
@@ -259,31 +291,12 @@ namespace PersonalCabinetEducationProgram.Controllers
         {
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             if (element == null)
-            {
                 return NotFound();
-            }
 
-            if (file != null && file.Length > 0 && string.IsNullOrEmpty(element.FilePath))
+            if (file != null && file.Length > 0)
             {
-                var oldStatus = element.StatusApprovals;
                 var uniqueFileName = await _fileStorageService.SaveFileAsync(file);
-
-                element.FilePath = uniqueFileName;
-                element.FileName = file.FileName;
-                element.UploadDate = DateOnly.FromDateTime(DateTime.Now);
-                element.StatusApprovals = "Загружено";
-
-                _context.ElementStatusHistory.Add(new ElementStatusHistory
-                {
-                    EducationalProgramElementId = elementId,
-                    UserId = GetCurrentUserId(),
-                    OldStatus = oldStatus,
-                    NewStatus = "Загружено",
-                    ChangeDate = DateTime.Now,
-                    Comment = $"Администратор загрузил файл: {file.FileName}"
-                });
-
-                await _context.SaveChangesAsync();
+                await _workflowService.MarkUploadedAsync(elementId, GetCurrentUserId(), uniqueFileName, file.FileName, adminOverride: true);
             }
 
             return RedirectToAction(nameof(ProgramDetails), new { id = element.EducationalProgramId });
@@ -293,14 +306,14 @@ namespace PersonalCabinetEducationProgram.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> ApproveElement(int elementId, string? comment)
         {
-            return await ChangeElementStatus(elementId, "Согласовано", comment ?? "Согласовано администратором");
+            return await ChangeElementStatus(elementId, ElementApprovalStatus.Approved, comment ?? "Согласовано администратором");
         }
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> SendElementToRevision(int elementId, string? comment)
         {
-            return await ChangeElementStatus(elementId, "На доработку", comment ?? "Отправлено на доработку администратором");
+            return await ChangeElementStatus(elementId, ElementApprovalStatus.RevisionRequired, comment ?? "Отправлено на доработку администратором");
         }
 
         [HttpPost]
@@ -309,16 +322,12 @@ namespace PersonalCabinetEducationProgram.Controllers
         {
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             if (element == null)
-            {
                 return NotFound();
-            }
 
-            if (element.StatusApprovals != "Согласовано")
-            {
+            if (ElementApprovalStatus.Normalize(element.StatusApprovals) != ElementApprovalStatus.Approved)
                 return BadRequest("Опубликовать можно только согласованный элемент");
-            }
 
-            return await ChangeElementStatus(elementId, "Опубликовано на сайте", comment ?? "Опубликовано администратором");
+            return await ChangeElementStatus(elementId, ElementApprovalStatus.Published, comment ?? "Опубликовано администратором");
         }
 
         [Authorize(Roles = "Admin")]
@@ -326,18 +335,14 @@ namespace PersonalCabinetEducationProgram.Controllers
         {
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             if (element == null || string.IsNullOrEmpty(element.FilePath))
-            {
                 return NotFound();
-            }
 
             var filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
             if (!System.IO.File.Exists(filePath))
-            {
                 return NotFound();
-            }
 
             var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            return File(fileBytes, "application/pdf", element.FileName ?? "download.pdf");
+            return File(fileBytes, GetContentType(element.FileName), element.FileName ?? "download");
         }
 
         [Authorize(Roles = "Admin")]
@@ -345,43 +350,23 @@ namespace PersonalCabinetEducationProgram.Controllers
         {
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             if (element == null || string.IsNullOrEmpty(element.FilePath))
-            {
                 return NotFound();
-            }
 
             var filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
             if (!System.IO.File.Exists(filePath))
-            {
                 return NotFound();
-            }
 
             var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{element.FileName ?? "preview.pdf"}\"");
-            return File(fileBytes, "application/pdf");
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{element.FileName ?? "preview"}\"");
+            return File(fileBytes, GetContentType(element.FileName));
         }
 
         private async Task<IActionResult> ChangeElementStatus(int elementId, string newStatus, string comment)
         {
-            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            var element = await _workflowService.ChangeStatusAsync(elementId, GetCurrentUserId(), newStatus, comment, adminOverride: true);
             if (element == null)
-            {
                 return NotFound();
-            }
 
-            var oldStatus = element.StatusApprovals;
-            element.StatusApprovals = newStatus;
-
-            _context.ElementStatusHistory.Add(new ElementStatusHistory
-            {
-                EducationalProgramElementId = elementId,
-                UserId = GetCurrentUserId(),
-                OldStatus = oldStatus,
-                NewStatus = newStatus,
-                ChangeDate = DateTime.Now,
-                Comment = comment
-            });
-
-            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(ProgramDetails), new { id = element.EducationalProgramId });
         }
 
@@ -402,27 +387,21 @@ namespace PersonalCabinetEducationProgram.Controllers
         private async Task<IActionResult> CreateApproverAssignment(int approverUserId, int? facultyId, int? departmentId, string redirectAction)
         {
             if (facultyId == null && departmentId == null)
-            {
                 return BadRequest();
-            }
 
-            var approver = await _context.Users.FirstOrDefaultAsync(u => u.Id == approverUserId && u.LinkRole == "Approver" && u.ApprovalStatus == "Approved");
+            var approver = await _context.Users.FirstOrDefaultAsync(u =>
+                u.Id == approverUserId &&
+                u.RoleId == GetRoleId(AppRoles.Approver) &&
+                u.ApprovalStatus == UserApprovalStatus.Approved);
+
             if (approver == null)
-            {
                 return NotFound();
-            }
 
-            if (facultyId != null)
-            {
-                var facultyExists = await _context.Facultys.AnyAsync(f => f.Id == facultyId);
-                if (!facultyExists) return NotFound();
-            }
+            if (facultyId != null && !await _context.Facultys.AnyAsync(f => f.Id == facultyId))
+                return NotFound();
 
-            if (departmentId != null)
-            {
-                var departmentExists = await _context.Departments.AnyAsync(d => d.Id == departmentId);
-                if (!departmentExists) return NotFound();
-            }
+            if (departmentId != null && !await _context.Departments.AnyAsync(d => d.Id == departmentId))
+                return NotFound();
 
             var exists = await _context.ApproverAssignments.AnyAsync(a =>
                 a.ApproverUserId == approverUserId && a.FacultyId == facultyId && a.DepartmentId == departmentId);
@@ -447,10 +426,7 @@ namespace PersonalCabinetEducationProgram.Controllers
         public async Task<IActionResult> Departments()
         {
             var departments = await _context.Departments.ToListAsync();
-            ViewBag.Approvers = await _context.Users
-                .Where(u => u.LinkRole == "Approver" && u.ApprovalStatus == "Approved")
-                .OrderBy(u => u.FullName)
-                .ToListAsync();
+            ViewBag.Approvers = await GetApprovedApprovers();
             return View(departments);
         }
 
@@ -458,9 +434,7 @@ namespace PersonalCabinetEducationProgram.Controllers
         {
             var department = await _context.Departments.FindAsync(id);
             if (department == null)
-            {
                 return NotFound();
-            }
 
             var programs = await _context.EducationalPrograms
                 .Where(p => p.Assignments.Any(a => a.DepartmentId == id))
@@ -470,40 +444,29 @@ namespace PersonalCabinetEducationProgram.Controllers
                 .OrderBy(p => p.CodeReferral)
                 .ToListAsync();
 
-            var viewModel = new OrganizationDocumentsViewModel
+            return View("OrganizationDocuments", new OrganizationDocumentsViewModel
             {
                 PageTitle = "Документы кафедры",
                 EntityType = "Department",
                 EntityId = department.Id,
                 EntityName = department.Name,
                 Programs = programs
-            };
-
-            return View("OrganizationDocuments", viewModel);
+            });
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateDepartment(string codeDepartment, string name)
         {
-            var dept = new Departments
-            {
-                CodeDepartment = codeDepartment,
-                Name = name
-            };
-
-            _context.Departments.Add(dept);
+            _context.Departments.Add(new Departments { CodeDepartment = codeDepartment, Name = name });
             await _context.SaveChangesAsync();
-
             return RedirectToAction(nameof(Departments));
         }
 
         public async Task<IActionResult> Faculties()
         {
             var faculties = await _context.Facultys.ToListAsync();
-            ViewBag.Approvers = await _context.Users
-                .Where(u => u.LinkRole == "Approver" && u.ApprovalStatus == "Approved")
-                .OrderBy(u => u.FullName)
-                .ToListAsync();
+            ViewBag.Approvers = await GetApprovedApprovers();
             return View(faculties);
         }
 
@@ -511,9 +474,7 @@ namespace PersonalCabinetEducationProgram.Controllers
         {
             var faculty = await _context.Facultys.FindAsync(id);
             if (faculty == null)
-            {
                 return NotFound();
-            }
 
             var programs = await _context.EducationalPrograms
                 .Where(p => p.Assignments.Any(a => a.FacultyId == id))
@@ -523,26 +484,53 @@ namespace PersonalCabinetEducationProgram.Controllers
                 .OrderBy(p => p.CodeReferral)
                 .ToListAsync();
 
-            var viewModel = new OrganizationDocumentsViewModel
+            return View("OrganizationDocuments", new OrganizationDocumentsViewModel
             {
                 PageTitle = "Документы факультета",
                 EntityType = "Faculty",
                 EntityId = faculty.Id,
                 EntityName = faculty.Name,
                 Programs = programs
-            };
-
-            return View("OrganizationDocuments", viewModel);
+            });
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CreateFaculty(string name)
         {
-            var faculty = new Facultys { Name = name };
-            _context.Facultys.Add(faculty);
+            _context.Facultys.Add(new Facultys { Name = name });
             await _context.SaveChangesAsync();
-
             return RedirectToAction(nameof(Faculties));
+        }
+
+        private async Task<List<User>> GetApprovedApprovers()
+        {
+            return await _context.Users
+                .Where(u => u.RoleId == GetRoleId(AppRoles.Approver) && u.ApprovalStatus == UserApprovalStatus.Approved)
+                .OrderBy(u => u.FullName)
+                .ToListAsync();
+        }
+
+        private static int GetRoleId(string role)
+        {
+            return role switch
+            {
+                AppRoles.Manager => 1,
+                AppRoles.Approver => 2,
+                AppRoles.Moderator => 3,
+                AppRoles.Admin => 4,
+                _ => 1
+            };
+        }
+
+        private static string GetContentType(string? fileName)
+        {
+            return Path.GetExtension(fileName).ToLowerInvariant() switch
+            {
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                _ => "application/pdf"
+            };
         }
     }
 }

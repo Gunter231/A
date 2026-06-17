@@ -14,15 +14,18 @@ namespace PersonalCabinetEducationProgram.Controllers
         private readonly IFileStorageService _fileStorageService;
         private readonly FileStorageSettings _storageSettings;
         private readonly ApplicationDbContext _context;
+        private readonly ElementWorkflowService _workflowService;
 
         public ManagerHomeController(
             IFileStorageService fileStorageService,
             IOptions<FileStorageSettings> storageSettings,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            ElementWorkflowService workflowService)
         {
             _fileStorageService = fileStorageService;
             _storageSettings = storageSettings.Value;
             _context = context;
+            _workflowService = workflowService;
         }
 
         private int GetCurrentUserId()
@@ -66,26 +69,15 @@ namespace PersonalCabinetEducationProgram.Controllers
             if (file != null && file.Length > 0)
             {
                 var element = await _context.EducationalProgramElements.FindAsync(elementId);
-                if (element != null && element.StatusApprovals != "Согласовано" && element.StatusApprovals != "Опубликовано на сайте")
+                if (element != null)
                 {
-                    string oldStatus = element.StatusApprovals;
-                    string uniqueFileName = await _fileStorageService.SaveFileAsync(file);
-                    element.FilePath = uniqueFileName;
-                    element.FileName = file.FileName;
-                    element.UploadDate = DateOnly.FromDateTime(DateTime.Now);
-                    element.StatusApprovals = "Загружено";
-
-                    _context.ElementStatusHistory.Add(new ElementStatusHistory
+                    if (ElementApprovalStatus.IsLockedForNonAdmin(element.StatusApprovals))
                     {
-                        EducationalProgramElementId = elementId,
-                        UserId = GetCurrentUserId(),
-                        OldStatus = oldStatus,
-                        NewStatus = "Загружено",
-                        ChangeDate = DateTime.Now,
-                        Comment = $"Загружен файл: {file.FileName}"
-                    });
+                        return BadRequest("Нельзя изменить согласованный или опубликованный элемент.");
+                    }
 
-                    await _context.SaveChangesAsync();
+                    string uniqueFileName = await _fileStorageService.SaveFileAsync(file);
+                    await _workflowService.MarkUploadedAsync(elementId, GetCurrentUserId(), uniqueFileName, file.FileName);
                 }
             }
 
@@ -104,7 +96,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                 return NotFound();
 
             byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            return File(fileBytes, "application/pdf", element.FileName ?? "download");
+            return File(fileBytes, GetContentType(element.FileName), element.FileName ?? "download");
         }
 
         public async Task<IActionResult> Preview(int elementId)
@@ -122,7 +114,7 @@ namespace PersonalCabinetEducationProgram.Controllers
 
             byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
             Response.Headers.Append("Content-Disposition", $"inline; filename=\"{element.FileName ?? "preview.pdf"}\"");
-            return File(fileBytes, "application/pdf");
+            return File(fileBytes, GetContentType(element.FileName));
         }
 
         [HttpPost]
@@ -132,23 +124,7 @@ namespace PersonalCabinetEducationProgram.Controllers
             if (element == null)
                 return NotFound();
 
-            if (element.StatusApprovals == "Согласовано" || element.StatusApprovals == "Опубликовано на сайте")
-                return BadRequest("Нельзя изменить статус согласованного или опубликованного элемента");
-
-            string oldStatus = element.StatusApprovals;
-            element.StatusApprovals = newStatus;
-
-            _context.ElementStatusHistory.Add(new ElementStatusHistory
-            {
-                EducationalProgramElementId = elementId,
-                UserId = GetCurrentUserId(),
-                OldStatus = oldStatus,
-                NewStatus = newStatus,
-                ChangeDate = DateTime.Now,
-                Comment = comment ?? ""
-            });
-
-            await _context.SaveChangesAsync();
+            await _workflowService.ChangeStatusAsync(elementId, GetCurrentUserId(), newStatus, comment);
 
             return RedirectToAction(nameof(Index), new { programId = element.EducationalProgramId });
         }
@@ -165,7 +141,7 @@ namespace PersonalCabinetEducationProgram.Controllers
                 UserId = GetCurrentUserId(),
                 DateTimeComment = DateTime.Now,
                 CommentContent = commentText,
-                Status = "Новый"
+                Status = CommentStatus.New
             };
 
             _context.EducationalProgramElementComment.Add(comment);
@@ -173,6 +149,25 @@ namespace PersonalCabinetEducationProgram.Controllers
 
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             return RedirectToAction(nameof(Index), new { programId = element?.EducationalProgramId ?? 1 });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateCommentStatus(int commentId, string status)
+        {
+            if (!CommentStatus.All.Contains(status))
+                return BadRequest();
+
+            var comment = await _context.EducationalProgramElementComment
+                .Include(c => c.Element)
+                .FirstOrDefaultAsync(c => c.Id == commentId);
+
+            if (comment == null)
+                return NotFound();
+
+            comment.Status = status;
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction(nameof(Comments), new { elementId = comment.EducationalProgramElementId });
         }
 
         public async Task<IActionResult> History(int elementId)
@@ -216,6 +211,16 @@ namespace PersonalCabinetEducationProgram.Controllers
             ViewBag.Element = element;
             ViewBag.ReturnController = nameof(ManagerHomeController).Replace("Controller", "");
             return View(comments);
+        }
+
+        private static string GetContentType(string? fileName)
+        {
+            return Path.GetExtension(fileName).ToLowerInvariant() switch
+            {
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                _ => "application/pdf"
+            };
         }
     }
 }

@@ -6,6 +6,13 @@ namespace PersonalCabinetEducationProgram.Services
 {
     public class FileSystemStorageService : IFileStorageService
     {
+        private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf",
+            ".doc",
+            ".docx"
+        };
+
         private readonly FileStorageSettings _settings;
 
         public FileSystemStorageService(IOptions<FileStorageSettings> settings)
@@ -17,6 +24,10 @@ namespace PersonalCabinetEducationProgram.Services
         {
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty");
+
+            var extension = Path.GetExtension(file.FileName);
+            if (!AllowedExtensions.Contains(extension))
+                throw new InvalidOperationException("Можно загружать только PDF, DOC и DOCX файлы.");
 
             string uploadsFolder = _settings.StoragePath;
 

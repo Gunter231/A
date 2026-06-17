@@ -37,20 +37,41 @@ namespace PersonalCabinetEducationProgram.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<EducationalProgramManager>(entity =>
+            {
+                entity.HasOne(m => m.User)
+                    .WithMany(u => u.EducationalProgramManagers)
+                    .HasForeignKey(m => m.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(m => m.AssignedByUser)
+                    .WithMany()
+                    .HasForeignKey(m => m.AssignedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.HasOne(u => u.Role)
+                    .WithMany(r => r.Users)
+                    .HasForeignKey(u => u.RoleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             // Seed Roles
             modelBuilder.Entity<Role>().HasData(
-                new Role { Id = 1, Name = "Manager", Description = "Руководитель ОПОП" },
-                new Role { Id = 2, Name = "Approver", Description = "Согласующий" },
-                new Role { Id = 3, Name = "Moderator", Description = "Модератор" },
-                new Role { Id = 4, Name = "Admin", Description = "Администратор" }
+                new Role { Id = 1, Name = AppRoles.Manager, Description = "Руководитель ОПОП" },
+                new Role { Id = 2, Name = AppRoles.Approver, Description = "Согласующий" },
+                new Role { Id = 3, Name = AppRoles.Moderator, Description = "Модератор" },
+                new Role { Id = 4, Name = AppRoles.Admin, Description = "Администратор" }
             );
 
             // Seed Users
             modelBuilder.Entity<User>().HasData(
-                new User { Id = 1, Username = "manager", PasswordHash = "866485796cfa8d7c0cf7111640205b83076433547577511d81f8030ae99ecea5", FullName = "Иванов Иван Иванович", LinkRole = "Manager", Post = "Заведующий кафедрой", ApprovalStatus = "Approved" },
-                new User { Id = 2, Username = "approver", PasswordHash = "1c391319644c0c6e9f5955e44e55862a8fd27b3b9d9863456500096ccf512db3", FullName = "Петрова Анна Сергеевна", LinkRole = "Approver", Post = "Декан факультета", ApprovalStatus = "Approved" },
-                new User { Id = 3, Username = "moderator", PasswordHash = "4c8425b174053ea6935b29c2b0e0aa4e2eab1a01b784e6ac91b8bdce9c26235a", FullName = "Сидоров Петр Алексеевич", LinkRole = "Moderator", Post = "Модератор", ApprovalStatus = "Approved" },
-                new User { Id = 4, Username = "admin", PasswordHash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", FullName = "Козлова Мария Ивановна", LinkRole = "Admin", Post = "Администратор", ApprovalStatus = "Approved" }
+                new User { Id = 1, Username = "manager", PasswordHash = "866485796cfa8d7c0cf7111640205b83076433547577511d81f8030ae99ecea5", FullName = "Иванов Иван Иванович", LinkRole = AppRoles.Manager, RoleId = 1, Post = "Заведующий кафедрой", ApprovalStatus = UserApprovalStatus.Approved },
+                new User { Id = 2, Username = "approver", PasswordHash = "1c391319644c0c6e9f5955e44e55862a8fd27b3b9d9863456500096ccf512db3", FullName = "Петрова Анна Сергеевна", LinkRole = AppRoles.Approver, RoleId = 2, Post = "Декан факультета", ApprovalStatus = UserApprovalStatus.Approved },
+                new User { Id = 3, Username = "moderator", PasswordHash = "4c8425b174053ea6935b29c2b0e0aa4e2eab1a01b784e6ac91b8bdce9c26235a", FullName = "Сидоров Петр Алексеевич", LinkRole = AppRoles.Moderator, RoleId = 3, Post = "Модератор", ApprovalStatus = UserApprovalStatus.Approved },
+                new User { Id = 4, Username = "admin", PasswordHash = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9", FullName = "Козлова Мария Ивановна", LinkRole = AppRoles.Admin, RoleId = 4, Post = "Администратор", ApprovalStatus = UserApprovalStatus.Approved }
             );
 
             // Seed Faculties
@@ -75,7 +96,7 @@ namespace PersonalCabinetEducationProgram.Data
                     CodeReferral = "01.03.02",
                     Name = "Прикладная математика и информатика",
                     EducationalLevel = "Бакалавриат",
-                    Status = "Разрабатывается",
+                    Status = EducationalProgramStatus.Draft,
                     UserId = 1
                 },
                 new EducationalProgram
@@ -84,7 +105,7 @@ namespace PersonalCabinetEducationProgram.Data
                     CodeReferral = "09.03.01",
                     Name = "Информатика и вычислительная техника",
                     EducationalLevel = "Бакалавриат",
-                    Status = "Разрабатывается",
+                    Status = EducationalProgramStatus.Draft,
                     UserId = 1
                 },
                 new EducationalProgram
@@ -93,16 +114,16 @@ namespace PersonalCabinetEducationProgram.Data
                     CodeReferral = "44.03.05",
                     Name = "Педагогическое образование (Математика. Информатика)",
                     EducationalLevel = "Бакалавриат",
-                    Status = "Разрабатывается",
+                    Status = EducationalProgramStatus.Draft,
                     UserId = 1
                 }
             );
 
             // Seed Managers
             modelBuilder.Entity<EducationalProgramManager>().HasData(
-                new EducationalProgramManager { Id = 1, EducationalProgramId = 1, UserId = 1 },
-                new EducationalProgramManager { Id = 2, EducationalProgramId = 2, UserId = 1 },
-                new EducationalProgramManager { Id = 3, EducationalProgramId = 3, UserId = 1 }
+                new EducationalProgramManager { Id = 1, EducationalProgramId = 1, UserId = 1, AssignedByUserId = 4, AssignedAt = new DateTime(2026, 5, 30, 10, 0, 0) },
+                new EducationalProgramManager { Id = 2, EducationalProgramId = 2, UserId = 1, AssignedByUserId = 4, AssignedAt = new DateTime(2026, 5, 30, 10, 5, 0) },
+                new EducationalProgramManager { Id = 3, EducationalProgramId = 3, UserId = 1, AssignedByUserId = 4, AssignedAt = new DateTime(2026, 5, 30, 10, 10, 0) }
             );
 
             // Seed Assignments
@@ -130,7 +151,7 @@ namespace PersonalCabinetEducationProgram.Data
                     TypeElement = "Main",
                     Name = "Пояснительная записка",
                     Description = "Общая информация",
-                    StatusApprovals = "На доработку"
+                    StatusApprovals = ElementApprovalStatus.RevisionRequired
                 },
                 new EducationalProgramElement
                 {
@@ -166,7 +187,7 @@ namespace PersonalCabinetEducationProgram.Data
                     TypeElement = "Discipline",
                     Name = "Философия",
                     Description = "Б1.О.01",
-                    StatusApprovals = "Согласовано"
+                    StatusApprovals = ElementApprovalStatus.Approved
                 },
                 new EducationalProgramElement
                 {
@@ -175,7 +196,7 @@ namespace PersonalCabinetEducationProgram.Data
                     TypeElement = "Discipline",
                     Name = "Математический анализ",
                     Description = "Б1.О.02",
-                    StatusApprovals = "На рассмотрении"
+                    StatusApprovals = ElementApprovalStatus.OnApproval
                 },
                 new EducationalProgramElement
                 {
@@ -193,7 +214,7 @@ namespace PersonalCabinetEducationProgram.Data
                     TypeElement = "Discipline",
                     Name = "Программирование",
                     Description = "Б1.О.04",
-                    StatusApprovals = "Согласовано"
+                    StatusApprovals = ElementApprovalStatus.Approved
                 },
                 new EducationalProgramElement
                 {

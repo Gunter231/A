@@ -24,9 +24,7 @@ namespace PersonalCabinetEducationProgram.Controllers
         public IActionResult Login()
         {
             if (User.Identity?.IsAuthenticated == true)
-            {
                 return RedirectToAction(nameof(RedirectByRole));
-            }
 
             return View(new LoginViewModel());
         }
@@ -36,35 +34,37 @@ namespace PersonalCabinetEducationProgram.Controllers
         public async Task<IActionResult> Login(LoginViewModel model)
         {
             if (!ModelState.IsValid)
-            {
                 return View(model);
-            }
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == model.Username);
+            var user = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.Username == model.Username);
+
             if (user == null || !PasswordHasher.Verify(model.Password, user.PasswordHash))
             {
                 ModelState.AddModelError(string.Empty, "Неверный логин или пароль.");
                 return View(model);
             }
 
-            if (user.ApprovalStatus == "Pending")
+            if (user.ApprovalStatus == UserApprovalStatus.Pending)
             {
                 ModelState.AddModelError(string.Empty, "Ваш аккаунт ожидает подтверждения модератором.");
                 return View(model);
             }
 
-            if (user.ApprovalStatus == "Rejected")
+            if (user.ApprovalStatus == UserApprovalStatus.Rejected)
             {
                 var reason = string.IsNullOrWhiteSpace(user.RejectionReason) ? string.Empty : $" Причина: {user.RejectionReason}";
                 ModelState.AddModelError(string.Empty, $"Ваш аккаунт отклонен модератором.{reason}");
                 return View(model);
             }
 
+            var roleName = user.Role?.Name ?? user.LinkRole;
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new(ClaimTypes.Name, user.FullName),
-                new(ClaimTypes.Role, user.LinkRole),
+                new(ClaimTypes.Role, roleName),
                 new("Username", user.Username),
                 new("Post", user.Post)
             };
@@ -81,9 +81,7 @@ namespace PersonalCabinetEducationProgram.Controllers
         public IActionResult Register()
         {
             if (User.Identity?.IsAuthenticated == true)
-            {
                 return RedirectToAction(nameof(RedirectByRole));
-            }
 
             return View(new RegisterViewModel());
         }
@@ -92,15 +90,13 @@ namespace PersonalCabinetEducationProgram.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Register(RegisterViewModel model)
         {
-            if (model.Role != "Manager" && model.Role != "Approver")
+            if (!AppRoles.SelfRegistration.Contains(model.Role))
             {
                 ModelState.AddModelError(nameof(model.Role), "Можно зарегистрироваться только как руководитель или согласующий.");
             }
 
             if (!ModelState.IsValid)
-            {
                 return View(model);
-            }
 
             var usernameExists = await _context.Users.AnyAsync(u => u.Username == model.Username);
             if (usernameExists)
@@ -109,17 +105,17 @@ namespace PersonalCabinetEducationProgram.Controllers
                 return View(model);
             }
 
-            var user = new User
+            _context.Users.Add(new User
             {
                 Username = model.Username,
                 PasswordHash = PasswordHasher.Hash(model.Password),
                 FullName = model.FullName,
                 Post = model.Post,
                 LinkRole = model.Role,
-                ApprovalStatus = "Pending"
-            };
+                RoleId = model.Role == AppRoles.Manager ? 1 : 2,
+                ApprovalStatus = UserApprovalStatus.Pending
+            });
 
-            _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = "Регистрация завершена. Дождитесь подтверждения модератором.";
@@ -137,15 +133,14 @@ namespace PersonalCabinetEducationProgram.Controllers
         [Authorize]
         public IActionResult RedirectByRole()
         {
-            if (User.IsInRole("Admin") || User.IsInRole("Moderator"))
-            {
+            if (User.IsInRole(AppRoles.Admin))
                 return RedirectToAction("Users", "Admin");
-            }
 
-            if (User.IsInRole("Approver"))
-            {
+            if (User.IsInRole(AppRoles.Moderator))
+                return RedirectToAction("Index", "ModeratorHome");
+
+            if (User.IsInRole(AppRoles.Approver))
                 return RedirectToAction("Index", "ApproverHome");
-            }
 
             return RedirectToAction("Index", "ManagerHome");
         }

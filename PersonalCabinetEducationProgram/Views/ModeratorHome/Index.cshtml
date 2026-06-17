@@ -1,4 +1,4 @@
-@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
+﻿@model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElement>
 @{
     ViewData["Title"] = "Модератор";
 
@@ -13,12 +13,12 @@
     var practices = Model.Where(e => e.TypeElement == "Practice").ToList();
     var gia = Model.Where(e => e.TypeElement == "GIA").ToList();
 
-    int countNew = Model.Count(e => string.IsNullOrEmpty(e.StatusApprovals));
-    int countUploaded = Model.Count(e => e.StatusApprovals == "Загружено");
-    int countOnReview = Model.Count(e => e.StatusApprovals == "На рассмотрении");
-    int countApproved = Model.Count(e => e.StatusApprovals == "Согласовано");
-    int countRejected = Model.Count(e => e.StatusApprovals == "На доработку");
-    int countPublished = Model.Count(e => e.StatusApprovals == "Опубликовано на сайте");
+    int countNew = Model.Count(e => string.IsNullOrEmpty(PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(e.StatusApprovals)));
+    int countUploaded = Model.Count(e => PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(e.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Uploaded);
+    int countOnReview = Model.Count(e => PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(e.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.OnApproval);
+    int countApproved = Model.Count(e => PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(e.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Approved);
+    int countRejected = Model.Count(e => PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(e.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.RevisionRequired);
+    int countPublished = Model.Count(e => PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(e.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Published);
 }
 
 <div class="container-fluid p-0 m-0 app-shell">
@@ -112,23 +112,27 @@
                                 <div class="card-body p-4">
                                     <div class="row align-items-center">
                                         <div class="col-12 col-md-4 text-center mb-3 mb-md-0">
-                                            <div class="position-relative d-inline-block" style="width:140px;height:140px;">
-                                                <svg viewBox="0 0 36 36" class="w-100 h-100">
-                                                    @{
-                                                        double total = Math.Max(countApproved + countPublished, 1);
-                                                        double pctApproved = (countApproved / total) * 100;
-                                                        double pctPublished = (countPublished / total) * 100;
-                                                        double circumference = 2 * Math.PI * 15.91549430918954;
-                                                        double offsetApproved = circumference - (pctApproved / 100 * circumference);
-                                                        double offsetPublished = offsetApproved - (pctPublished / 100 * circumference);
-                                                    }
-                                                    <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#e9ecef" stroke-width="3.5"></circle>
-                                                    <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#198754" stroke-width="3.5"
-                                                            stroke-dasharray="@(pctApproved.ToString("F1")) @(100 - pctApproved)" stroke-dashoffset="25"></circle>
-                                                    <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="#0d6efd" stroke-width="3.5"
-                                                            stroke-dasharray="@(pctPublished.ToString("F1")) @(100 - pctPublished)" stroke-dashoffset="@(25 - pctApproved).ToString("F1")"></circle>
-                                                </svg>
-                                                <div class="position-absolute top-50 start-50 translate-middle text-center">
+                                            @{
+                                                double total = Math.Max(countApproved + countPublished + countUploaded + countRejected, 1);
+                                                double pctApproved = (countApproved / total) * 100;
+                                                double pctPublished = (countPublished / total) * 100;
+                                                double pctUploaded = (countUploaded / total) * 100;
+                                                double pctRejected = (countRejected / total) * 100;
+
+                                                double stop1 = pctApproved;
+                                                double stop2 = stop1 + pctPublished;
+                                                double stop3 = stop2 + pctUploaded;
+                                                double stop4 = stop3 + pctRejected;
+
+                                                string chartStyle = "background: conic-gradient(" +
+                                                    $"#198754 0% {stop1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}%, " +
+                                                    $"#0d6efd {stop1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}% {stop2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}%, " +
+                                                    $"#ffc107 {stop2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}% {stop3.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}%, " +
+                                                    $"#dc3545 {stop3.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}% {stop4.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}%);";
+                                            }
+                                            <div class="position-relative d-inline-block rounded-circle" style="width:140px;height:140px;@chartStyle">
+                                                <div class="position-absolute top-50 start-50 translate-middle rounded-circle bg-white d-flex flex-column align-items-center justify-content-center"
+                                                     style="width:92px;height:92px;box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);">
                                                     <div class="fw-bold fs-4">@Model.Count()</div>
                                                     <div class="text-muted small">всего</div>
                                                 </div>
@@ -258,12 +262,12 @@
                                                     <a asp-action="Download" asp-route-elementId="@element.Id"
                                                        class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                                                 }
-                                                @if (element.StatusApprovals == "Согласовано")
+                                                @if (PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(element.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Approved)
                                                 {
                                                     <button type="button" class="btn btn-outline-primary btn-sm" title="Опубликовать"
                                                             onclick="showPublishModal(@element.Id)">🌐</button>
                                                 }
-                                                @if (element.StatusApprovals == "Опубликовано на сайте")
+                                                @if (PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(element.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Published)
                                                 {
                                                     <button type="button" class="btn btn-outline-warning btn-sm" title="Снять с публикации"
                                                             onclick="showUnpublishModal(@element.Id)">🚫</button>
@@ -364,12 +368,12 @@
                         <a asp-action="Download" asp-route-elementId="@element.Id"
                            class="btn btn-outline-secondary btn-sm" title="Скачать">⬇</a>
                     }
-                    @if (element.StatusApprovals == "Согласовано")
+                    @if (PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(element.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Approved)
                     {
                         <button type="button" class="btn btn-outline-primary btn-sm" title="Опубликовать"
                                 onclick="showPublishModal(@element.Id)">🌐</button>
                     }
-                    @if (element.StatusApprovals == "Опубликовано на сайте")
+                    @if (PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Normalize(element.StatusApprovals) == PersonalCabinetEducationProgram.Models.ElementApprovalStatus.Published)
                     {
                         <button type="button" class="btn btn-outline-warning btn-sm" title="Снять с публикации"
                                 onclick="showUnpublishModal(@element.Id)">🚫</button>

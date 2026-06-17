@@ -1,4 +1,4 @@
-USE personal_cabinet;
+﻿USE personal_cabinet;
 
 -- Роли
 INSERT INTO roles (Id, Name, Description) VALUES

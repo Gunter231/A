@@ -49,9 +49,6 @@
                                     <a class="nav-link" asp-controller="Admin" asp-action="Programs">ОПОП</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Admin" asp-action="Users">Пользователи</a>
-                                </li>
-                                <li class="nav-item">
                                     <a class="nav-link" asp-controller="Admin" asp-action="Departments">Кафедры</a>
                                 </li>
                                 <li class="nav-item">
@@ -60,6 +57,9 @@
                             }
                             @if (User.IsInRole("Admin"))
                             {
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-controller="Admin" asp-action="Users">Пользователи</a>
+                                </li>
                                 <li class="nav-item">
                                     <a class="nav-link" asp-controller="Admin" asp-action="Assignments">Назначения</a>
                                 </li>

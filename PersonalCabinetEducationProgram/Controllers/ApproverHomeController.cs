@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PersonalCabinetEducationProgram.Data;
@@ -11,18 +11,18 @@ namespace PersonalCabinetEducationProgram.Controllers
     [Authorize(Roles = "Approver,Admin")]
     public class ApproverHomeController : Controller
     {
-        private readonly IFileStorageService _fileStorageService;
         private readonly FileStorageSettings _storageSettings;
         private readonly ApplicationDbContext _context;
+        private readonly ElementWorkflowService _workflowService;
 
         public ApproverHomeController(
-            IFileStorageService fileStorageService,
             IOptions<FileStorageSettings> storageSettings,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            ElementWorkflowService workflowService)
         {
-            _fileStorageService = fileStorageService;
             _storageSettings = storageSettings.Value;
             _context = context;
+            _workflowService = workflowService;
         }
 
         private int GetCurrentUserId()
@@ -37,20 +37,23 @@ namespace PersonalCabinetEducationProgram.Controllers
                 .Include(p => p.Assignments).ThenInclude(a => a.Faculty)
                 .ToListAsync();
 
-            int? selectedProgramId = programId ?? programs.FirstOrDefault()?.Id;
+            if (!User.IsInRole(AppRoles.Admin))
+            {
+                var currentUserId = GetCurrentUserId();
+                var approverAssignments = await _context.ApproverAssignments
+                    .Where(a => a.ApproverUserId == currentUserId)
+                    .ToListAsync();
 
-            var currentUserId = GetCurrentUserId();
-            var approverAssignments = await _context.ApproverAssignments
-                .Where(a => a.ApproverUserId == currentUserId)
-                .ToListAsync();
+                programs = programs.Where(p =>
+                    approverAssignments.Any(a => p.Assignments.Any(pa =>
+                        (a.FacultyId != null && pa.FacultyId == a.FacultyId) ||
+                        (a.DepartmentId != null && pa.DepartmentId == a.DepartmentId))))
+                    .ToList();
+            }
 
-            programs = programs.Where(p =>
-                approverAssignments.Any(a => p.Assignments.Any(pa =>
-                    (a.FacultyId != null && pa.FacultyId == a.FacultyId) ||
-                    (a.DepartmentId != null && pa.DepartmentId == a.DepartmentId))))
-                .ToList();
-
-            selectedProgramId ??= programs.FirstOrDefault()?.Id;
+            int? selectedProgramId = programId != null && programs.Any(p => p.Id == programId)
+                ? programId
+                : programs.FirstOrDefault()?.Id;
 
             var elements = selectedProgramId == null
                 ? new List<EducationalProgramElement>()
@@ -59,14 +62,10 @@ namespace PersonalCabinetEducationProgram.Controllers
                     .Include(e => e.EducationalProgram)
                     .ToListAsync();
 
-            var comments = await _context.EducationalProgramElementComment
-                .Include(c => c.User)
-                .ToListAsync();
-
             ViewBag.Programs = programs;
             ViewBag.SelectedProgramId = selectedProgramId;
             ViewBag.ActiveTab = tab;
-            ViewBag.Comments = comments;
+            ViewBag.Comments = await _context.EducationalProgramElementComment.Include(c => c.User).ToListAsync();
 
             return View(elements);
         }
@@ -77,110 +76,77 @@ namespace PersonalCabinetEducationProgram.Controllers
             if (element == null || string.IsNullOrEmpty(element.FilePath))
                 return NotFound();
 
-            string filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
+            var filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
             if (!System.IO.File.Exists(filePath))
                 return NotFound();
 
-            byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            return File(fileBytes, "application/pdf", element.FileName ?? "download");
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            return File(fileBytes, GetContentType(element.FileName), element.FileName ?? "download");
         }
 
         public async Task<IActionResult> Preview(int elementId)
         {
-            var element = await _context.EducationalProgramElements
-                .Include(e => e.EducationalProgram)
-                .FirstOrDefaultAsync(e => e.Id == elementId);
-
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
             if (element == null || string.IsNullOrEmpty(element.FilePath))
                 return NotFound();
 
-            string filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
+            var filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
             if (!System.IO.File.Exists(filePath))
                 return NotFound();
 
-            byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{element.FileName ?? "preview.pdf"}\"");
-            return File(fileBytes, "application/pdf");
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{element.FileName ?? "preview"}\"");
+            return File(fileBytes, GetContentType(element.FileName));
         }
 
         [HttpPost]
-        public async Task<IActionResult> Approve(int elementId, string comment)
+        public async Task<IActionResult> Approve(int elementId, string? comment)
         {
-            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            var element = await _workflowService.ChangeStatusAsync(
+                elementId,
+                GetCurrentUserId(),
+                ElementApprovalStatus.Approved,
+                comment ?? ElementApprovalStatus.Approved,
+                User.IsInRole(AppRoles.Admin),
+                ElementApprovalStatus.ApproverCanApprove);
+
             if (element == null)
                 return NotFound();
 
-            if (element.StatusApprovals != "Загружено" && element.StatusApprovals != "На рассмотрении" && element.StatusApprovals != "На доработку")
-                return BadRequest("Элемент не может быть согласован в текущем статусе");
-
-            string oldStatus = element.StatusApprovals;
-            element.StatusApprovals = "Согласовано";
-
-            _context.ElementStatusHistory.Add(new ElementStatusHistory
-            {
-                EducationalProgramElementId = elementId,
-                UserId = GetCurrentUserId(),
-                OldStatus = oldStatus,
-                NewStatus = "Согласовано",
-                ChangeDate = DateTime.Now,
-                Comment = comment ?? "Согласовано"
-            });
-
-            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index), new { programId = element.EducationalProgramId });
         }
 
         [HttpPost]
-        public async Task<IActionResult> Reject(int elementId, string comment)
+        public async Task<IActionResult> Reject(int elementId, string? comment)
         {
-            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            var element = await _workflowService.ChangeStatusAsync(
+                elementId,
+                GetCurrentUserId(),
+                ElementApprovalStatus.RevisionRequired,
+                comment ?? "Отправлено на доработку",
+                User.IsInRole(AppRoles.Admin),
+                ElementApprovalStatus.ApproverCanReject);
+
             if (element == null)
                 return NotFound();
 
-            if (element.StatusApprovals != "Загружено" && element.StatusApprovals != "На рассмотрении")
-                return BadRequest("Элемент не может быть отклонён в текущем статусе");
-
-            string oldStatus = element.StatusApprovals;
-            element.StatusApprovals = "На доработку";
-
-            _context.ElementStatusHistory.Add(new ElementStatusHistory
-            {
-                EducationalProgramElementId = elementId,
-                UserId = GetCurrentUserId(),
-                OldStatus = oldStatus,
-                NewStatus = "На доработку",
-                ChangeDate = DateTime.Now,
-                Comment = comment ?? "Отправлено на доработку"
-            });
-
-            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index), new { programId = element.EducationalProgramId });
         }
 
         [HttpPost]
         public async Task<IActionResult> SendForReview(int elementId)
         {
-            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            var element = await _workflowService.ChangeStatusAsync(
+                elementId,
+                GetCurrentUserId(),
+                ElementApprovalStatus.OnApproval,
+                "Отправлено на согласование",
+                User.IsInRole(AppRoles.Admin),
+                [ElementApprovalStatus.Uploaded]);
+
             if (element == null)
                 return NotFound();
 
-            if (element.StatusApprovals != "Загружено")
-                return BadRequest("Только загруженные элементы можно отправить на рассмотрение");
-
-            string oldStatus = element.StatusApprovals;
-            element.StatusApprovals = "На рассмотрении";
-
-            _context.ElementStatusHistory.Add(new ElementStatusHistory
-            {
-                EducationalProgramElementId = elementId,
-                UserId = GetCurrentUserId(),
-                OldStatus = oldStatus,
-                NewStatus = "На рассмотрении",
-                ChangeDate = DateTime.Now,
-                Comment = "Отправлено на рассмотрение"
-            });
-
-            await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index), new { programId = element.EducationalProgramId });
         }
 
@@ -190,63 +156,81 @@ namespace PersonalCabinetEducationProgram.Controllers
             if (string.IsNullOrWhiteSpace(commentText))
                 return RedirectToAction(nameof(Index));
 
-            var comment = new EducationalProgramElementComment
+            _context.EducationalProgramElementComment.Add(new EducationalProgramElementComment
             {
                 EducationalProgramElementId = elementId,
                 UserId = GetCurrentUserId(),
                 DateTimeComment = DateTime.Now,
                 CommentContent = commentText,
-                Status = "Новый"
-            };
+                Status = CommentStatus.New
+            });
 
-            _context.EducationalProgramElementComment.Add(comment);
             await _context.SaveChangesAsync();
 
             var element = await _context.EducationalProgramElements.FindAsync(elementId);
             return RedirectToAction(nameof(Index), new { programId = element?.EducationalProgramId ?? 1 });
         }
 
+        [HttpPost]
+        public async Task<IActionResult> UpdateCommentStatus(int commentId, string status)
+        {
+            if (!CommentStatus.All.Contains(status))
+                return BadRequest();
+
+            var comment = await _context.EducationalProgramElementComment.FindAsync(commentId);
+            if (comment == null)
+                return NotFound();
+
+            comment.Status = status;
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction(nameof(Comments), new { elementId = comment.EducationalProgramElementId });
+        }
+
         public async Task<IActionResult> History(int elementId)
         {
-            var element = await _context.EducationalProgramElements
-                .Include(e => e.EducationalProgram)
-                .FirstOrDefaultAsync(e => e.Id == elementId);
-
-            var history = await _context.ElementStatusHistory
-                .Where(h => h.EducationalProgramElementId == elementId)
-                .Include(h => h.User)
-                .OrderByDescending(h => h.ChangeDate)
-                .ToListAsync();
-
-            var comments = await _context.EducationalProgramElementComment
-                .Where(c => c.EducationalProgramElementId == elementId)
-                .Include(c => c.User)
-                .OrderByDescending(c => c.DateTimeComment)
-                .ToListAsync();
-
-            ViewBag.Element = element;
-            ViewBag.History = history;
-            ViewBag.Comments = comments;
-            ViewBag.ReturnController = nameof(ApproverHomeController).Replace("Controller", "");
-
+            await FillElementDetailsViewBag(elementId, nameof(ApproverHomeController).Replace("Controller", ""));
             return View("~/Views/ManagerHome/History.cshtml");
         }
 
         public async Task<IActionResult> Comments(int elementId)
         {
-            var element = await _context.EducationalProgramElements
+            await FillElementDetailsViewBag(elementId, nameof(ApproverHomeController).Replace("Controller", ""));
+            var comments = await GetElementComments(elementId);
+            return View("~/Views/ManagerHome/Comments.cshtml", comments);
+        }
+
+        private async Task FillElementDetailsViewBag(int elementId, string returnController)
+        {
+            ViewBag.Element = await _context.EducationalProgramElements
                 .Include(e => e.EducationalProgram)
                 .FirstOrDefaultAsync(e => e.Id == elementId);
+            ViewBag.History = await _context.ElementStatusHistory
+                .Where(h => h.EducationalProgramElementId == elementId)
+                .Include(h => h.User)
+                .OrderByDescending(h => h.ChangeDate)
+                .ToListAsync();
+            ViewBag.Comments = await GetElementComments(elementId);
+            ViewBag.ReturnController = returnController;
+        }
 
-            var comments = await _context.EducationalProgramElementComment
+        private async Task<List<EducationalProgramElementComment>> GetElementComments(int elementId)
+        {
+            return await _context.EducationalProgramElementComment
                 .Where(c => c.EducationalProgramElementId == elementId)
                 .Include(c => c.User)
                 .OrderByDescending(c => c.DateTimeComment)
                 .ToListAsync();
+        }
 
-            ViewBag.Element = element;
-            ViewBag.ReturnController = nameof(ApproverHomeController).Replace("Controller", "");
-            return View("~/Views/ManagerHome/Comments.cshtml", comments);
+        private static string GetContentType(string? fileName)
+        {
+            return Path.GetExtension(fileName).ToLowerInvariant() switch
+            {
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                _ => "application/pdf"
+            };
         }
     }
 }

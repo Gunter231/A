@@ -1,4 +1,5 @@
 @model IEnumerable<PersonalCabinetEducationProgram.Models.EducationalProgramElementComment>
+@using PersonalCabinetEducationProgram.Models
 @{
     ViewData["Title"] = "Комментарии";
     var element = ViewBag.Element as PersonalCabinetEducationProgram.Models.EducationalProgramElement;
@@ -37,10 +38,16 @@
                             <div class="text-muted small" style="font-size:0.72rem;">@comment.DateTimeComment.ToString("dd.MM.yyyy HH:mm")</div>
                         </div>
                         <div class="small">@comment.CommentContent</div>
-                        @if (comment.Status == "Новый")
-                        {
-                            <div class="mt-1"><span class="badge bg-info-subtle text-info" style="font-size:0.65rem;">Новый</span></div>
-                        }
+                        <form method="post" asp-controller="@returnController" asp-action="UpdateCommentStatus" class="mt-2 d-flex gap-2 align-items-center">
+                            <input type="hidden" name="commentId" value="@comment.Id" />
+                            <select name="status" class="form-select form-select-sm" style="max-width: 180px;">
+                                @foreach (var status in CommentStatus.All)
+                                {
+                                    <option value="@status" selected="@(comment.Status == status)">@status</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Сохранить</button>
+                        </form>
                     </div>
                 }
             }

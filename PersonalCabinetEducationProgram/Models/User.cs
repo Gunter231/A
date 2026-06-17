@@ -21,6 +21,9 @@ namespace PersonalCabinetEducationProgram.Models
         [Column("link_role")]
         public string LinkRole { get; set; }
 
+        [Column("role_id")]
+        public int RoleId { get; set; }
+
         [Column("post")]
         public string Post { get; set; }
 
@@ -31,6 +34,7 @@ namespace PersonalCabinetEducationProgram.Models
         public string? RejectionReason { get; set; }
 
         // Навигации
+        public Role Role { get; set; }
         public ICollection<EducationalProgram> EducationalPrograms { get; set; }
         public ICollection<EducationalProgramElementComment> Comments { get; set; }
         public ICollection<EducationalProgramManager> EducationalProgramManagers { get; set; }
