@@ -15,6 +15,7 @@ namespace PersonalCabinetEducationProgram.Data
         public DbSet<Facultys> Facultys { get; set; }
         public DbSet<EducationalProgramAssignment> EducationalProgramAssignments { get; set; }
         public DbSet<ElementStatusHistory> ElementStatusHistory { get; set; }
+        public DbSet<ApproverAssignment> ApproverAssignments { get; set; }
 
         public ApplicationDbContext() { }
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
@@ -22,6 +23,19 @@ namespace PersonalCabinetEducationProgram.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<ApproverAssignment>(entity =>
+            {
+                entity.HasOne(a => a.ApproverUser)
+                    .WithMany(u => u.ApproverAssignments)
+                    .HasForeignKey(a => a.ApproverUserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.AssignedByUser)
+                    .WithMany()
+                    .HasForeignKey(a => a.AssignedByUserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
 
             // Seed Roles
             modelBuilder.Entity<Role>().HasData(

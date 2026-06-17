@@ -101,6 +101,24 @@ CREATE TABLE IF NOT EXISTS educational_program_assignments (
         REFERENCES facultys (Id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Таблица назначений согласующих
+CREATE TABLE IF NOT EXISTS approver_assignments (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    approver_user_id INT NOT NULL,
+    faculty_id INT NULL,
+    department_id INT NULL,
+    assigned_by_user_id INT NOT NULL,
+    assigned_at DATETIME(6) NOT NULL,
+    CONSTRAINT FK_approver_assignments_user FOREIGN KEY (approver_user_id)
+        REFERENCES users (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_approver_assignments_assigned_by_user FOREIGN KEY (assigned_by_user_id)
+        REFERENCES users (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_approver_assignments_faculty FOREIGN KEY (faculty_id)
+        REFERENCES facultys (Id) ON DELETE CASCADE,
+    CONSTRAINT FK_approver_assignments_department FOREIGN KEY (department_id)
+        REFERENCES departments (Id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Таблица истории изменений статусов элементов
 CREATE TABLE IF NOT EXISTS element_status_history (
     Id INT AUTO_INCREMENT PRIMARY KEY,

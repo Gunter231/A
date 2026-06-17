@@ -39,10 +39,25 @@ namespace PersonalCabinetEducationProgram.Controllers
 
             int? selectedProgramId = programId ?? programs.FirstOrDefault()?.Id;
 
-            var elements = await _context.EducationalProgramElements
-                .Where(e => e.EducationalProgramId == selectedProgramId)
-                .Include(e => e.EducationalProgram)
+            var currentUserId = GetCurrentUserId();
+            var approverAssignments = await _context.ApproverAssignments
+                .Where(a => a.ApproverUserId == currentUserId)
                 .ToListAsync();
+
+            programs = programs.Where(p =>
+                approverAssignments.Any(a => p.Assignments.Any(pa =>
+                    (a.FacultyId != null && pa.FacultyId == a.FacultyId) ||
+                    (a.DepartmentId != null && pa.DepartmentId == a.DepartmentId))))
+                .ToList();
+
+            selectedProgramId ??= programs.FirstOrDefault()?.Id;
+
+            var elements = selectedProgramId == null
+                ? new List<EducationalProgramElement>()
+                : await _context.EducationalProgramElements
+                    .Where(e => e.EducationalProgramId == selectedProgramId)
+                    .Include(e => e.EducationalProgram)
+                    .ToListAsync();
 
             var comments = await _context.EducationalProgramElementComment
                 .Include(c => c.User)

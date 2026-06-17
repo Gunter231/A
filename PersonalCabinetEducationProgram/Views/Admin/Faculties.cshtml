@@ -1,6 +1,7 @@
 @model IEnumerable<PersonalCabinetEducationProgram.Models.Facultys>
 @{
     ViewData["Title"] = "Факультеты";
+    var approvers = ViewBag.Approvers as List<PersonalCabinetEducationProgram.Models.User>;
 }
 
 <div class="container py-4">
@@ -27,8 +28,44 @@
                                 <a asp-action="FacultyDetails" asp-route-id="@f.Id" class="btn btn-outline-primary btn-sm">
                                     Открыть документы
                                 </a>
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#assignApproverFaculty_@f.Id">
+                                        Назначить согласующего
+                                    </button>
+                                }
                             </td>
                         </tr>
+
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <div class="modal fade" id="assignApproverFaculty_@f.Id" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content rounded-4">
+                                        <form method="post" asp-action="AssignApproverToFaculty">
+                                            <div class="modal-header"><h5 class="modal-title">Назначить согласующего факультету</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                            <div class="modal-body">
+                                                <input type="hidden" name="facultyId" value="@f.Id" />
+                                                <div class="mb-3 fw-semibold">@f.Name</div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Согласующий</label>
+                                                    <select name="approverUserId" class="form-select">
+                                                        @if (approvers != null)
+                                                        {
+                                                            @foreach (var approver in approvers)
+                                                            {
+                                                                <option value="@approver.Id">@approver.FullName</option>
+                                                            }
+                                                        }
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="submit" class="btn btn-success">Назначить</button></div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     }
                 </tbody>
             </table>

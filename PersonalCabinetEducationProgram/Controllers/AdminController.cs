@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using PersonalCabinetEducationProgram.Data;
 using PersonalCabinetEducationProgram.Models;
+using PersonalCabinetEducationProgram.Services;
 using PersonalCabinetEducationProgram.ViewModels;
 
 namespace PersonalCabinetEducationProgram.Controllers
@@ -11,10 +13,17 @@ namespace PersonalCabinetEducationProgram.Controllers
     public class AdminController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IFileStorageService _fileStorageService;
+        private readonly FileStorageSettings _storageSettings;
 
-        public AdminController(ApplicationDbContext context)
+        public AdminController(
+            ApplicationDbContext context,
+            IFileStorageService fileStorageService,
+            IOptions<FileStorageSettings> storageSettings)
         {
             _context = context;
+            _fileStorageService = fileStorageService;
+            _storageSettings = storageSettings.Value;
         }
 
         public async Task<IActionResult> Users()
@@ -115,6 +124,38 @@ namespace PersonalCabinetEducationProgram.Controllers
             return View(programs);
         }
 
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ProgramDetails(int id)
+        {
+            var program = await _context.EducationalPrograms
+                .Include(p => p.User)
+                .Include(p => p.Assignments).ThenInclude(a => a.Department)
+                .Include(p => p.Assignments).ThenInclude(a => a.Faculty)
+                .Include(p => p.Elements)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (program == null)
+            {
+                return NotFound();
+            }
+
+            return View(program);
+        }
+
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Assignments()
+        {
+            var assignments = await _context.ApproverAssignments
+                .Include(a => a.ApproverUser)
+                .Include(a => a.AssignedByUser)
+                .Include(a => a.Faculty)
+                .Include(a => a.Department)
+                .OrderByDescending(a => a.AssignedAt)
+                .ToListAsync();
+
+            return View(assignments);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateProgram(string codeReferral, string name, string educationalLevel,
             int yearApprovals, int departmentId, int facultyId, int? managerUserId)
@@ -183,9 +224,233 @@ namespace PersonalCabinetEducationProgram.Controllers
             return RedirectToAction(nameof(Programs));
         }
 
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateProgramElement(int programId, string typeElement, string name, string description)
+        {
+            var programExists = await _context.EducationalPrograms.AnyAsync(p => p.Id == programId);
+            if (!programExists)
+            {
+                return NotFound();
+            }
+
+            var allowedTypes = new[] { "Main", "Discipline", "Practice", "GIA" };
+            if (!allowedTypes.Contains(typeElement))
+            {
+                return BadRequest("Неизвестный тип элемента ОПОП");
+            }
+
+            _context.EducationalProgramElements.Add(new EducationalProgramElement
+            {
+                EducationalProgramId = programId,
+                TypeElement = typeElement,
+                Name = name,
+                Description = description ?? string.Empty,
+                StatusApprovals = string.Empty
+            });
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(ProgramDetails), new { id = programId });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UploadElement(int elementId, IFormFile file)
+        {
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            if (element == null)
+            {
+                return NotFound();
+            }
+
+            if (file != null && file.Length > 0 && string.IsNullOrEmpty(element.FilePath))
+            {
+                var oldStatus = element.StatusApprovals;
+                var uniqueFileName = await _fileStorageService.SaveFileAsync(file);
+
+                element.FilePath = uniqueFileName;
+                element.FileName = file.FileName;
+                element.UploadDate = DateOnly.FromDateTime(DateTime.Now);
+                element.StatusApprovals = "Загружено";
+
+                _context.ElementStatusHistory.Add(new ElementStatusHistory
+                {
+                    EducationalProgramElementId = elementId,
+                    UserId = GetCurrentUserId(),
+                    OldStatus = oldStatus,
+                    NewStatus = "Загружено",
+                    ChangeDate = DateTime.Now,
+                    Comment = $"Администратор загрузил файл: {file.FileName}"
+                });
+
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToAction(nameof(ProgramDetails), new { id = element.EducationalProgramId });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ApproveElement(int elementId, string? comment)
+        {
+            return await ChangeElementStatus(elementId, "Согласовано", comment ?? "Согласовано администратором");
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> SendElementToRevision(int elementId, string? comment)
+        {
+            return await ChangeElementStatus(elementId, "На доработку", comment ?? "Отправлено на доработку администратором");
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> PublishElement(int elementId, string? comment)
+        {
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            if (element == null)
+            {
+                return NotFound();
+            }
+
+            if (element.StatusApprovals != "Согласовано")
+            {
+                return BadRequest("Опубликовать можно только согласованный элемент");
+            }
+
+            return await ChangeElementStatus(elementId, "Опубликовано на сайте", comment ?? "Опубликовано администратором");
+        }
+
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DownloadElement(int elementId)
+        {
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            if (element == null || string.IsNullOrEmpty(element.FilePath))
+            {
+                return NotFound();
+            }
+
+            var filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
+            if (!System.IO.File.Exists(filePath))
+            {
+                return NotFound();
+            }
+
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            return File(fileBytes, "application/pdf", element.FileName ?? "download.pdf");
+        }
+
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> PreviewElement(int elementId)
+        {
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            if (element == null || string.IsNullOrEmpty(element.FilePath))
+            {
+                return NotFound();
+            }
+
+            var filePath = Path.Combine(_storageSettings.StoragePath, element.FilePath);
+            if (!System.IO.File.Exists(filePath))
+            {
+                return NotFound();
+            }
+
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{element.FileName ?? "preview.pdf"}\"");
+            return File(fileBytes, "application/pdf");
+        }
+
+        private async Task<IActionResult> ChangeElementStatus(int elementId, string newStatus, string comment)
+        {
+            var element = await _context.EducationalProgramElements.FindAsync(elementId);
+            if (element == null)
+            {
+                return NotFound();
+            }
+
+            var oldStatus = element.StatusApprovals;
+            element.StatusApprovals = newStatus;
+
+            _context.ElementStatusHistory.Add(new ElementStatusHistory
+            {
+                EducationalProgramElementId = elementId,
+                UserId = GetCurrentUserId(),
+                OldStatus = oldStatus,
+                NewStatus = newStatus,
+                ChangeDate = DateTime.Now,
+                Comment = comment
+            });
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(ProgramDetails), new { id = element.EducationalProgramId });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AssignApproverToFaculty(int approverUserId, int facultyId)
+        {
+            return await CreateApproverAssignment(approverUserId, facultyId, null, nameof(Faculties));
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AssignApproverToDepartment(int approverUserId, int departmentId)
+        {
+            return await CreateApproverAssignment(approverUserId, null, departmentId, nameof(Departments));
+        }
+
+        private async Task<IActionResult> CreateApproverAssignment(int approverUserId, int? facultyId, int? departmentId, string redirectAction)
+        {
+            if (facultyId == null && departmentId == null)
+            {
+                return BadRequest();
+            }
+
+            var approver = await _context.Users.FirstOrDefaultAsync(u => u.Id == approverUserId && u.LinkRole == "Approver" && u.ApprovalStatus == "Approved");
+            if (approver == null)
+            {
+                return NotFound();
+            }
+
+            if (facultyId != null)
+            {
+                var facultyExists = await _context.Facultys.AnyAsync(f => f.Id == facultyId);
+                if (!facultyExists) return NotFound();
+            }
+
+            if (departmentId != null)
+            {
+                var departmentExists = await _context.Departments.AnyAsync(d => d.Id == departmentId);
+                if (!departmentExists) return NotFound();
+            }
+
+            var exists = await _context.ApproverAssignments.AnyAsync(a =>
+                a.ApproverUserId == approverUserId && a.FacultyId == facultyId && a.DepartmentId == departmentId);
+
+            if (!exists)
+            {
+                _context.ApproverAssignments.Add(new ApproverAssignment
+                {
+                    ApproverUserId = approverUserId,
+                    FacultyId = facultyId,
+                    DepartmentId = departmentId,
+                    AssignedByUserId = GetCurrentUserId(),
+                    AssignedAt = DateTime.Now
+                });
+
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToAction(redirectAction);
+        }
+
         public async Task<IActionResult> Departments()
         {
             var departments = await _context.Departments.ToListAsync();
+            ViewBag.Approvers = await _context.Users
+                .Where(u => u.LinkRole == "Approver" && u.ApprovalStatus == "Approved")
+                .OrderBy(u => u.FullName)
+                .ToListAsync();
             return View(departments);
         }
 
@@ -235,6 +500,10 @@ namespace PersonalCabinetEducationProgram.Controllers
         public async Task<IActionResult> Faculties()
         {
             var faculties = await _context.Facultys.ToListAsync();
+            ViewBag.Approvers = await _context.Users
+                .Where(u => u.LinkRole == "Approver" && u.ApprovalStatus == "Approved")
+                .OrderBy(u => u.FullName)
+                .ToListAsync();
             return View(faculties);
         }
 

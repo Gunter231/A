@@ -58,6 +58,12 @@
                                     <a class="nav-link" asp-controller="Admin" asp-action="Faculties">Факультеты</a>
                                 </li>
                             }
+                            @if (User.IsInRole("Admin"))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-controller="Admin" asp-action="Assignments">Назначения</a>
+                                </li>
+                            }
                         }
                     </ul>
 

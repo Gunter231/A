@@ -32,8 +32,12 @@
                     {
                         var assignment = program.Assignments?.FirstOrDefault();
                         <tr>
-                            <td class="fw-semibold">@program.CodeReferral</td>
-                            <td>@program.Name</td>
+                            <td class="fw-semibold">
+                                <a asp-action="ProgramDetails" asp-route-id="@program.Id" class="text-decoration-none">@program.CodeReferral</a>
+                            </td>
+                            <td>
+                                <a asp-action="ProgramDetails" asp-route-id="@program.Id" class="text-decoration-none fw-semibold">@program.Name</a>
+                            </td>
                             <td>@program.EducationalLevel</td>
                             <td class="small">@assignment?.Department?.Name</td>
                             <td class="small">@assignment?.Faculty?.Name</td>
@@ -54,6 +58,7 @@
                                         data-bs-toggle="modal" data-bs-target="#assignManagerModal_@program.Id">
                                     Назначить
                                 </button>
+                                <a asp-action="ProgramDetails" asp-route-id="@program.Id" class="btn btn-outline-secondary btn-sm">Документы</a>
                             </td>
                         </tr>
 
