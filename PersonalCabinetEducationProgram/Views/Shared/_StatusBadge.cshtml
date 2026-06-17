@@ -1,0 +1,16 @@
+@model string
+
+@{
+    var statusClass = Model switch
+    {
+        "Загружено" => "bg-warning-subtle text-warning border-warning-subtle",
+        "На рассмотрении" => "bg-info-subtle text-info border-info-subtle",
+        "Согласовано" => "bg-success-subtle text-success border-success-subtle",
+        "На доработку" => "bg-danger-subtle text-danger border-danger-subtle",
+        "Опубликовано на сайте" => "bg-primary-subtle text-primary border-primary-subtle",
+        _ => "bg-secondary-subtle text-secondary border-secondary-subtle"
+    };
+    var statusText = string.IsNullOrEmpty(Model) ? "Не загружено" : Model;
+}
+
+<span class="status-badge @statusClass border d-inline-block">@statusText</span>
