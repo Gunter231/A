@@ -1,111 +1,94 @@
-﻿@using PersonalCabinetEducationProgram.Data
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var action = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var isWorkflowPage = controller is "ManagerHome" or "ApproverHome" or "ModeratorHome";
+    var showAppSidebar = isAuthenticated && !User.IsInRole("Admin") && !isWorkflowPage && controller != "Account";
+
+    string ActiveLink(string targetController, string? targetAction = null)
+    {
+        var controllerMatches = controller.Equals(targetController, StringComparison.OrdinalIgnoreCase);
+        var actionMatches = targetAction == null || action.Equals(targetAction, StringComparison.OrdinalIgnoreCase);
+        return controllerMatches && actionMatches ? "active" : string.Empty;
+    }
+}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] — Личный кабинет руководителя ОП</title>
+    <title>@ViewData["Title"] — Менеджер образовательных программ</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/PersonalCabinetEducationProgram.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-dark bg-dark shadow-sm">
-            <div class="container-fluid">
-                <a class="navbar-brand fw-bold" asp-controller="ManagerHome" asp-action="Index">
-                    Личный кабинет ОПОП
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                        data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        @if (User.Identity?.IsAuthenticated == true)
-                        {
-                            @if (User.IsInRole("Manager") || User.IsInRole("Admin"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="ManagerHome" asp-action="Index">Руководитель</a>
-                                </li>
-                            }
-                            @if (User.IsInRole("Approver") || User.IsInRole("Admin"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="ApproverHome" asp-action="Index">Согласующий</a>
-                                </li>
-                            }
-                            @if (User.IsInRole("Moderator") || User.IsInRole("Admin"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="ModeratorHome" asp-action="Index">Модератор</a>
-                                </li>
-                            }
-                            @if (User.IsInRole("Moderator") || User.IsInRole("Admin"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Admin" asp-action="Programs">ОПОП</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Admin" asp-action="Departments">Кафедры</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Admin" asp-action="Faculties">Факультеты</a>
-                                </li>
-                            }
-                            @if (User.IsInRole("Admin"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Admin" asp-action="Users">Пользователи</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Admin" asp-action="Assignments">Назначения</a>
-                                </li>
-                            }
-                        }
-                    </ul>
+    <header class="app-header">
+        <a class="app-brand" asp-controller="ManagerHome" asp-action="Index">
+            <span>Менеджер</span>
+            <span>образовательных программ</span>
+        </a>
 
-                    <ul class="navbar-nav">
-                        @if (User.Identity?.IsAuthenticated == true)
-                        {
-                            <li class="nav-item d-flex align-items-center me-3 text-white">
-                                <div class="d-flex flex-column" style="line-height: 1.2;">
-                                    <span class="text-white fw-semibold small">@User.Identity.Name</span>
-                                    <span class="text-white-50" style="font-size:0.7rem;">@User.FindFirst("Post")?.Value</span>
-                                </div>
-                            </li>
-                            <li class="nav-item">
-                                <form method="post" asp-controller="Account" asp-action="Logout" class="d-inline">
-                                    <button type="submit" class="btn btn-outline-light btn-sm">Выход</button>
-                                </form>
-                            </li>
-                        }
-                        else
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link" asp-controller="Account" asp-action="Login">Вход</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" asp-controller="Account" asp-action="Register">Регистрация</a>
-                            </li>
-                        }
-                    </ul>
+        @if (isAuthenticated && User.IsInRole("Admin"))
+        {
+            <nav class="admin-header-nav" aria-label="Разделы администратора">
+                <a class="@ActiveLink("ManagerHome")" asp-controller="ManagerHome" asp-action="Index">Образовательные программы</a>
+                <a class="@ActiveLink("ApproverHome")" asp-controller="ApproverHome" asp-action="Index">Согласование</a>
+                <a class="@ActiveLink("ModeratorHome")" asp-controller="ModeratorHome" asp-action="Index">Публикация</a>
+                <a class="@ActiveLink("Admin", "Programs")" asp-controller="Admin" asp-action="Programs">ОПОП</a>
+                <a class="@ActiveLink("Admin", "Faculties")" asp-controller="Admin" asp-action="Faculties">Факультеты</a>
+                <a class="@ActiveLink("Admin", "Departments")" asp-controller="Admin" asp-action="Departments">Кафедры</a>
+                <a class="@ActiveLink("Admin", "Users")" asp-controller="Admin" asp-action="Users">Пользователи</a>
+                <a class="@ActiveLink("Admin", "Assignments")" asp-controller="Admin" asp-action="Assignments">Назначения</a>
+            </nav>
+        }
+
+        @if (isAuthenticated)
+        {
+            <div class="app-user">
+                <span class="app-avatar" aria-hidden="true"></span>
+                <div class="app-user-copy">
+                    <strong>@User.Identity?.Name</strong>
+                    <span>@User.FindFirst("Post")?.Value</span>
                 </div>
+                <form method="post" asp-controller="Account" asp-action="Logout">
+                    <button type="submit" class="icon-button logout-button" title="Выйти" aria-label="Выйти">↗</button>
+                </form>
             </div>
-        </nav>
+        }
     </header>
 
-    <main role="main">
-        @RenderBody()
-    </main>
+    <div class="site-shell @(showAppSidebar ? "with-navigation" : "")">
+        @if (showAppSidebar)
+        {
+            <aside class="global-sidebar">
+                <nav class="global-nav" aria-label="Основная навигация">
+                    @if (User.IsInRole("Manager") || User.IsInRole("Admin"))
+                    {
+                        <a class="@ActiveLink("ManagerHome")" asp-controller="ManagerHome" asp-action="Index">
+                            <span class="nav-icon">▦</span><span>Образовательные программы</span>
+                        </a>
+                    }
+                    @if (User.IsInRole("Approver") || User.IsInRole("Admin"))
+                    {
+                        <a class="@ActiveLink("ApproverHome")" asp-controller="ApproverHome" asp-action="Index">
+                            <span class="nav-icon">✓</span><span>Согласование</span>
+                        </a>
+                    }
+                    @if (User.IsInRole("Moderator") || User.IsInRole("Admin"))
+                    {
+                        <a class="@ActiveLink("ModeratorHome")" asp-controller="ModeratorHome" asp-action="Index">
+                            <span class="nav-icon">◎</span><span>Публикация</span>
+                        </a>
+                    }
+                </nav>
+            </aside>
+        }
 
-    <footer class="border-top footer text-muted py-2" style="background:#f8f9fa;">
-        <div class="container text-center small">
-            &copy; 2026 Личный кабинет руководителя образовательной программы
-        </div>
-    </footer>
+        <main role="main" class="site-content">
+            @RenderBody()
+        </main>
+    </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

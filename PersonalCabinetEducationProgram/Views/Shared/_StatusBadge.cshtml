@@ -5,14 +5,14 @@
     var normalizedStatus = ElementApprovalStatus.Normalize(Model);
     var statusClass = normalizedStatus switch
     {
-        ElementApprovalStatus.Uploaded => "bg-warning-subtle text-warning border-warning-subtle",
-        ElementApprovalStatus.OnApproval => "bg-info-subtle text-info border-info-subtle",
-        ElementApprovalStatus.Approved => "bg-success-subtle text-success border-success-subtle",
-        ElementApprovalStatus.RevisionRequired => "bg-danger-subtle text-danger border-danger-subtle",
-        ElementApprovalStatus.Published => "bg-primary-subtle text-primary border-primary-subtle",
-        _ => "bg-secondary-subtle text-secondary border-secondary-subtle"
+        ElementApprovalStatus.Uploaded => "bg-warning-subtle text-warning",
+        ElementApprovalStatus.OnApproval => "bg-info-subtle text-info",
+        ElementApprovalStatus.Approved => "bg-success-subtle text-success",
+        ElementApprovalStatus.RevisionRequired => "bg-danger-subtle text-danger",
+        ElementApprovalStatus.Published => "bg-primary-subtle text-primary",
+        _ => "bg-secondary-subtle text-secondary"
     };
     var statusText = string.IsNullOrEmpty(normalizedStatus) ? "Не загружено" : normalizedStatus;
 }
 
-<span class="status-badge @statusClass border d-inline-block">@statusText</span>
+<span class="status-badge @statusClass d-inline-block">@statusText</span>

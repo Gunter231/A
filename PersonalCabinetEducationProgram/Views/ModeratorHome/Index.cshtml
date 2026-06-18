@@ -37,17 +37,18 @@
                     foreach (var group in grouped)
                     {
                         var groupKey = group.Key?.Replace(" ", "") ?? "unknown";
+                        var groupContainsSelected = group.Any(p => p.Id == selectedProgramId);
                         <div class="mb-1">
                             <div class="accordion" id="sidebar_@groupKey">
                                 <div class="accordion-item border-0">
                                     <h2 class="accordion-header">
-                                        <button class="accordion-button collapsed bg-white shadow-none px-2 py-2 fw-semibold small"
+                                        <button class="accordion-button @(groupContainsSelected ? "" : "collapsed") bg-white shadow-none px-2 py-2 fw-semibold small"
                                                 type="button" data-bs-toggle="collapse"
                                                 data-bs-target="#collapse_@groupKey">
                                             @group.Key
                                         </button>
                                     </h2>
-                                    <div id="collapse_@groupKey" class="accordion-collapse collapse" data-bs-parent="#sidebar_@groupKey">
+                                    <div id="collapse_@groupKey" class="accordion-collapse collapse @(groupContainsSelected ? "show" : "")" data-bs-parent="#sidebar_@groupKey">
                                         <div class="accordion-body p-0 ps-2">
                                             @foreach (var prog in group)
                                             {
@@ -205,9 +206,7 @@
                 </div>
 
                 <div class="mb-3">
-                    <div class="card shadow-sm rounded-4">
-                        <div class="card-body p-2">
-                            <ul class="nav nav-pills gap-1 px-2">
+                            <ul class="nav nav-pills gap-1">
                                 <li class="nav-item">
                                     <a class="nav-link tab-custom @(activeTab == "disciplines" ? "active" : "")"
                                        asp-action="Index" asp-route-programId="@selectedProgramId" asp-route-tab="disciplines">Дисциплины</a>
@@ -221,8 +220,6 @@
                                        asp-action="Index" asp-route-programId="@selectedProgramId" asp-route-tab="gia">ГИА</a>
                                 </li>
                             </ul>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="card shadow-sm rounded-4">
